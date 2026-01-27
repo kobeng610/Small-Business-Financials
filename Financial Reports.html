@@ -83,51 +83,61 @@ document.getElementById('fileInput').addEventListener('change', handleFile);
 function handleFile(event) {
   const file = event.target.files[0];
   const reader = new FileReader();
-
-  reader.onload = function(e) {
-    const rows = e.target.result.split('\n').slice(1);
-    processTransactions(rows);
-  };
-
+  reader.onload = e => processTransactions(e.target.result);
   reader.readAsText(file);
 }
 
-function processTransactions(rows) {
+function processTransactions(csv) {
+  const rows = csv.split('\n').slice(1);
   const debitBody = document.querySelector('#debitTable tbody');
   const creditBody = document.querySelector('#creditTable tbody');
 
   debitBody.innerHTML = '';
   creditBody.innerHTML = '';
 
-  let totalDebits = 0;
-  let totalCredits = 0;
+  let income = 0;
+  let expenses = 0;
+  let categoryTotals = {};
 
   rows.forEach(row => {
     if (!row.trim()) return;
-
-    const [date, desc, amountStr, type] = row.split(',');
+    const [date, desc, amountStr] = row.split(',');
     const amount = parseFloat(amountStr);
+
+    const category = categorize(desc);
+    categoryTotals[category] = (categoryTotals[category] || 0) + Math.abs(amount);
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${date}</td>
       <td>${desc}</td>
-      <td class="${amount < 0 ? 'negative' : 'positive'}">$${Math.abs(amount).toFixed(2)}</td>
+      <td>${category}</td>
+      <td>$${Math.abs(amount).toFixed(2)}</td>
     `;
 
-    if ((type && type.trim().toLowerCase() === 'debit') || amount < 0) {
+    if (amount < 0) {
       debitBody.appendChild(tr);
-      totalDebits += Math.abs(amount);
+      expenses += Math.abs(amount);
     } else {
       creditBody.appendChild(tr);
-      totalCredits += Math.abs(amount);
+      income += amount;
     }
   });
 
-  document.getElementById('totalDebits').textContent = totalDebits.toFixed(2);
-  document.getElementById('totalCredits').textContent = totalCredits.toFixed(2);
-  document.getElementById('netBalance').textContent =
-    (totalCredits - totalDebits).toFixed(2);
+  document.getElementById('totalDebits').textContent = expenses.toFixed(2);
+  document.getElementById('totalCredits').textContent = income.toFixed(2);
+  document.getElementById('netBalance').textContent = (income - expenses).toFixed(2);
+}
+
+function categorize(description) {
+  description = description.toLowerCase();
+  if (description.includes('rent')) return 'Rent';
+  if (description.includes('payroll') || description.includes('salary')) return 'Payroll';
+  if (description.includes('electric') || description.includes('water')) return 'Utilities';
+  if (description.includes('facebook') || description.includes('google')) return 'Marketing';
+  if (description.includes('uber') || description.includes('flight')) return 'Travel';
+  if (description.includes('office')) return 'Office Supplies';
+  return 'Miscellaneous';
 }
 </script>
 
