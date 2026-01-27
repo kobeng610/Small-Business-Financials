@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Transaction Upload & Financial Report</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      background: #f5f7fa;
+    }
+    h1, h2 {
+      color: #2c3e50;
+    }
+    input[type="file"] {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background: #34495e;
+      color: white;
+    }
+    .summary {
+      background: #ffffff;
+      padding: 20px;
+      border: 1px solid #ddd;
+      width: 50%;
+    }
+    .positive { color: green; }
+    .negative { color: red; }
+  </style>
+</head>
+<body>
+
+<h1>Business Transaction Upload</h1>
+
+<input type="file" id="fileInput" accept=".csv" />
+
+<h2>Debit Transactions</h2>
+<table id="debitTable">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Description</th>
+      <th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Credit Transactions</h2>
+<table id="creditTable">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Description</th>
+      <th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Financial Summary</h2>
+<div class="summary">
+  <p><strong>Total Debits:</strong> $<span id="totalDebits">0.00</span></p>
+  <p><strong>Total Credits:</strong> $<span id="totalCredits">0.00</span></p>
+  <p><strong>Net Balance:</strong> $<span id="netBalance">0.00</span></p>
+</div>
+
+<script>
+document.getElementById('fileInput').addEventListener('change', handleFile);
+
+function handleFile(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = function(e) {
+    const rows = e.target.result.split('\n').slice(1);
+    processTransactions(rows);
+  };
+
+  reader.readAsText(file);
+}
+
+function processTransactions(rows) {
+  const debitBody = document.querySelector('#debitTable tbody');
+  const creditBody = document.querySelector('#creditTable tbody');
+
+  debitBody.innerHTML = '';
+  creditBody.innerHTML = '';
+
+  let totalDebits = 0;
+  let totalCredits = 0;
+
+  rows.forEach(row => {
+    if (!row.trim()) return;
+
+    const [date, desc, amountStr, type] = row.split(',');
+    const amount = parseFloat(amountStr);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${date}</td>
+      <td>${desc}</td>
+      <td class="${amount < 0 ? 'negative' : 'positive'}">$${Math.abs(amount).toFixed(2)}</td>
+    `;
+
+    if ((type && type.trim().toLowerCase() === 'debit') || amount < 0) {
+      debitBody.appendChild(tr);
+      totalDebits += Math.abs(amount);
+    } else {
+      creditBody.appendChild(tr);
+      totalCredits += Math.abs(amount);
+    }
+  });
+
+  document.getElementById('totalDebits').textContent = totalDebits.toFixed(2);
+  document.getElementById('totalCredits').textContent = totalCredits.toFixed(2);
+  document.getElementById('netBalance').textContent =
+    (totalCredits - totalDebits).toFixed(2);
+}
+</script>
+
+</body>
+</html>
