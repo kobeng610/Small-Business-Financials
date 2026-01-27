@@ -1,16 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard | Small Business Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Shared Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Minimal dashboard-specific fallback styles -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      background: #f5f7fa;
+      color: #2c3e50;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    nav span {
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    nav button {
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+  </style>
+</head>
+
 <body>
+
+  <!-- TOP NAVIGATION -->
   <nav>
     <span>Small Business Analyzer</span>
-    <button id="upgradeBtn">Upgrade</button>
+    <button id="upgradeBtn" style="display:none;">Upgrade</button>
   </nav>
-<link rel="stylesheet" href="css/styles.css">
-  <!-- Upload + Reports -->
-  <input type="file" id="fileInput" />
 
-  <div id="summary"></div>
+  <!-- DASHBOARD CONTENT -->
+  <main>
 
+    <!-- UPLOAD -->
+    <section class="section">
+      <h1>Dashboard</h1>
+      <p>Upload your transactions to generate financial reports.</p>
+
+      <input type="file" id="fileInput" accept=".csv" />
+    </section>
+
+    <!-- SUMMARY -->
+    <section class="section">
+      <div id="summary">
+        <!-- Populated by dashboard.js -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SCRIPTS (ORDER MATTERS) -->
   <script src="js/auth.js"></script>
   <script src="js/gating.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/onboarding.js"></script>
+
 </body>
+</html>
