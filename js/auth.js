@@ -52,7 +52,11 @@ function loginUser(email) {
     loggedInAt: Date.now()
   };
 
-  localStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("user", JSON.stringify({
+  email: "test@demo.com",
+  isPaid: false
+}));
+
   window.location.href = "dashboard.html";
 }
 
