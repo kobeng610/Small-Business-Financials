@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Small Business Financial Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f6f9;
+      margin: 0;
+      padding: 0;
+      color: #2c3e50;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 30px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #555;
+      margin-bottom: 25px;
+    }
+
+    .upload-box {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      margin-bottom: 30px;
+    }
+
+    input[type="file"] {
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #ffffff;
+      margin-bottom: 40px;
+    }
+
+    th, td {
+      border: 1px solid #e0e0e0;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    th {
+      background: #34495e;
+      color: #ffffff;
+    }
+
+    .income {
+      color: green;
+      font-weight: bold;
+    }
+
+    .expense {
+      color: red;
+      font-weight: bold;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    .card h3 {
+      margin-top: 0;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .card p {
+      font-size: 22px;
+      margin: 10px 0 0;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: #777;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Small Business Financial Analyzer</h1>
+    <p class="subtitle">
+      Upload your transaction file to instantly see income, expenses, and profit.
+      Your data never leaves your browser.
+    </p>
+
+    <div class="upload-box">
+      <input type="file" id="fileInput" accept=".csv" />
+      <p style="font-size:13px; color:#777;">
+        CSV format: Date, Description, Amount
+      </p>
+    </div>
+
+    <div class="summary">
+      <div class="card">
+        <h3>Total Income</h3>
+        <p class="income">$<span id="totalIncome">0.00</span></p>
+      </div>
+
+      <div class="card">
+        <h3>Total Expenses</h3>
+        <p class="expense">$<span id="totalExpenses">0.00</span></p>
+      </div>
+
+      <div class="card">
+        <h3>Net Profit</h3>
+        <p>$<span id="netProfit">0.00</span></p>
+      </div>
+    </div>
+
+    <h2>Income</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody id="incomeTable"></tbody>
+    </table>
+
+    <h2>Expenses</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Category</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody id="expenseTable"></tbody>
+    </table>
+
+    <footer>
+      © Small Business Financial Analyzer • No data is stored • Client-side only
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById("fileInput").addEventListener("change", handleFile);
+
+    function handleFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = e => processCSV(e.target.result);
+      reader.readAsText(file);
+    }
+
+    function processCSV(csv) {
+      const rows = csv.split("\n").slice(1);
+      const incomeTable = document.getElementById("incomeTable");
+      const expenseTable = document.getElementById("expenseTable");
+
+      incomeTable.innerHTML = "";
+      expenseTable.innerHTML = "";
+
+      let totalIncome = 0;
+      let totalExpenses = 0;
+
+      rows.forEach(row => {
+        if (!row.trim()) return;
+
+        const [date, description, amountStr] = row.split(",");
+        const amount = parseFloat(amountStr);
+
+        if (isNaN(amount)) return;
+
+        if (amount > 0) {
+          totalIncome += amount;
+          incomeTable.innerHTML += `
+            <tr>
+              <td>${date}</td>
+              <td>${description}</td>
+              <td class="income">$${amount.toFixed(2)}</td>
+            </tr>`;
+        } else {
+          const category = categorize(description);
+          totalExpenses += Math.abs(amount);
+          expenseTable.innerHTML += `
+            <tr>
+              <td>${date}</td>
+              <td>${description}</td>
+              <td>${category}</td>
+              <td class="expense">$${Math.abs(amount).toFixed(2)}</td>
+            </tr>`;
+        }
+      });
+
+      document.getElementById("totalIncome").textContent = totalIncome.toFixed(2);
+      document.getElementById("totalExpenses").textContent = totalExpenses.toFixed(2);
+      document.getElementById("netProfit").textContent = (totalIncome - totalExpenses).toFixed(2);
+    }
+
+    function categorize(desc) {
+      desc = desc.toLowerCase();
+      if (desc.includes("rent")) return "Rent";
+      if (desc.includes("payroll") || desc.includes("salary")) return "Payroll";
+      if (desc.includes("electric") || desc.includes("water") || desc.includes("internet")) return "Utilities";
+      if (desc.includes("google") || desc.includes("facebook") || desc.includes("ads")) return "Marketing";
+      if (desc.includes("uber") || desc.includes("flight") || desc.includes("hotel")) return "Travel";
+      if (desc.includes("office")) return "Office Supplies";
+      return "Miscellaneous";
+    }
+  </script>
+</body>
+</html>
