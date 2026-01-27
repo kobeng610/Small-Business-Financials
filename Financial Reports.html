@@ -1,153 +1,201 @@
 <!DOCTYPE html>
-<header>
-  <h1>Know Your Business Numbers in Minutes</h1>
-  <p>Upload transactions and instantly see income, expenses, and profit.</p>
-
-  <a href="login.html" class="cta">Try the Free Demo</a>
-</header>
-
 <html lang="en">
 <head>
-  <link rel="stylesheet" href="css/styles.css">
   <meta charset="UTF-8">
-  <title>Transaction Upload & Financial Report</title>
+  <title>Financial Reports</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Shared Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Page-specific fallback styles (can be moved to CSS later) -->
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 30px;
       background: #f5f7fa;
-    }
-    h1, h2 {
       color: #2c3e50;
     }
+
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    header {
+      margin-bottom: 30px;
+    }
+
     input[type="file"] {
       margin-bottom: 20px;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 30px;
       background: #fff;
     }
+
     th, td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: left;
     }
+
     th {
       background: #34495e;
-      color: white;
+      color: #fff;
     }
+
     .summary {
       background: #ffffff;
       padding: 20px;
       border: 1px solid #ddd;
       width: 50%;
+      margin-bottom: 40px;
     }
-    .positive { color: green; }
-    .negative { color: red; }
+
+    .positive {
+      color: green;
+      font-weight: bold;
+    }
+
+    .negative {
+      color: red;
+      font-weight: bold;
+    }
   </style>
 </head>
+
 <body>
 
-<h1>Business Transaction Upload</h1>
+  <!-- NAV (SaaS-ready placeholder) -->
+  <nav>
+    <strong>Small Business Financials</strong>
+    <!-- Reserved for auth later -->
+    <button id="logoutBtn" style="display:none;">Log out</button>
+  </nav>
 
-<input type="file" id="fileInput" accept=".csv" />
+  <!-- PAGE HEADER -->
+  <header>
+    <h1>Financial Reports</h1>
+    <p>
+      Upload your transactions to instantly generate income, expense,
+      and profit reports.
+    </p>
+  </header>
 
-<h2>Debit Transactions</h2>
-<table id="debitTable">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Description</th>
-      <th>Amount</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+  <!-- FILE UPLOAD -->
+  <input type="file" id="fileInput" accept=".csv" />
 
-<h2>Credit Transactions</h2>
-<table id="creditTable">
-  <thead>
-    <tr>
-      <th>Date</th>
-      <th>Description</th>
-      <th>Amount</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
+  <!-- DEBITS -->
+  <h2>Debit Transactions (Expenses)</h2>
+  <table id="debitTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Category</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<h2>Financial Summary</h2>
-<div class="summary">
-  <p><strong>Total Debits:</strong> $<span id="totalDebits">0.00</span></p>
-  <p><strong>Total Credits:</strong> $<span id="totalCredits">0.00</span></p>
-  <p><strong>Net Balance:</strong> $<span id="netBalance">0.00</span></p>
-</div>
+  <!-- CREDITS -->
+  <h2>Credit Transactions (Income)</h2>
+  <table id="creditTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Description</th>
+        <th>Category</th>
+        <th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<script>
-document.getElementById('fileInput').addEventListener('change', handleFile);
+  <!-- SUMMARY -->
+  <h2>Financial Summary</h2>
+  <div class="summary">
+    <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
+    <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
+    <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
+  </div>
 
-function handleFile(event) {
-  const file = event.target.files[0];
-  const reader = new FileReader();
-  reader.onload = e => processTransactions(e.target.result);
-  reader.readAsText(file);
-}
+  <!-- SCRIPT -->
+  <script>
+    document.getElementById('fileInput').addEventListener('change', handleFile);
 
-function processTransactions(csv) {
-  const rows = csv.split('\n').slice(1);
-  const debitBody = document.querySelector('#debitTable tbody');
-  const creditBody = document.querySelector('#creditTable tbody');
+    function handleFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
 
-  debitBody.innerHTML = '';
-  creditBody.innerHTML = '';
-
-  let income = 0;
-  let expenses = 0;
-  let categoryTotals = {};
-
-  rows.forEach(row => {
-    if (!row.trim()) return;
-    const [date, desc, amountStr] = row.split(',');
-    const amount = parseFloat(amountStr);
-
-    const category = categorize(desc);
-    categoryTotals[category] = (categoryTotals[category] || 0) + Math.abs(amount);
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${date}</td>
-      <td>${desc}</td>
-      <td>${category}</td>
-      <td>$${Math.abs(amount).toFixed(2)}</td>
-    `;
-
-    if (amount < 0) {
-      debitBody.appendChild(tr);
-      expenses += Math.abs(amount);
-    } else {
-      creditBody.appendChild(tr);
-      income += amount;
+      const reader = new FileReader();
+      reader.onload = e => processTransactions(e.target.result);
+      reader.readAsText(file);
     }
-  });
 
-  document.getElementById('totalDebits').textContent = expenses.toFixed(2);
-  document.getElementById('totalCredits').textContent = income.toFixed(2);
-  document.getElementById('netBalance').textContent = (income - expenses).toFixed(2);
-}
+    function processTransactions(csv) {
+      const rows = csv.split('\n').slice(1);
+      const debitBody = document.querySelector('#debitTable tbody');
+      const creditBody = document.querySelector('#creditTable tbody');
 
-function categorize(description) {
-  description = description.toLowerCase();
-  if (description.includes('rent')) return 'Rent';
-  if (description.includes('payroll') || description.includes('salary')) return 'Payroll';
-  if (description.includes('electric') || description.includes('water')) return 'Utilities';
-  if (description.includes('facebook') || description.includes('google')) return 'Marketing';
-  if (description.includes('uber') || description.includes('flight')) return 'Travel';
-  if (description.includes('office')) return 'Office Supplies';
-  return 'Miscellaneous';
-}
-</script>
+      debitBody.innerHTML = '';
+      creditBody.innerHTML = '';
+
+      let income = 0;
+      let expenses = 0;
+
+      rows.forEach(row => {
+        if (!row.trim()) return;
+
+        const [date, desc, amountStr] = row.split(',');
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount)) return;
+
+        const category = categorize(desc);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${date}</td>
+          <td>${desc}</td>
+          <td>${category}</td>
+          <td class="${amount < 0 ? 'negative' : 'positive'}">
+            $${Math.abs(amount).toFixed(2)}
+          </td>
+        `;
+
+        if (amount < 0) {
+          debitBody.appendChild(tr);
+          expenses += Math.abs(amount);
+        } else {
+          creditBody.appendChild(tr);
+          income += amount;
+        }
+      });
+
+      document.getElementById('totalDebits').textContent = expenses.toFixed(2);
+      document.getElementById('totalCredits').textContent = income.toFixed(2);
+      document.getElementById('netBalance').textContent =
+        (income - expenses).toFixed(2);
+    }
+
+    function categorize(description) {
+      description = description.toLowerCase();
+      if (description.includes('rent')) return 'Rent';
+      if (description.includes('payroll') || description.includes('salary')) return 'Payroll';
+      if (description.includes('electric') || description.includes('water') || description.includes('internet')) return 'Utilities';
+      if (description.includes('google') || description.includes('facebook') || description.includes('ads')) return 'Marketing';
+      if (description.includes('uber') || description.includes('flight') || description.includes('hotel')) return 'Travel';
+      if (description.includes('office')) return 'Office Supplies';
+      return 'Miscellaneous';
+    }
+  </script>
 
 </body>
 </html>
