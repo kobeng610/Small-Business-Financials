@@ -116,131 +116,142 @@
   <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
+ <script>
+document.addEventListener("DOMContentLoaded", () => {
 
-      if (isProUser()) {
-        document.getElementById("categoryTotalsSection").style.display = "block";
+  if (isProUser()) {
+    document.getElementById("categoryTotalsSection").style.display = "block";
+  }
+
+  document.getElementById("fileInput").addEventListener("change", handleFile);
+
+  function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+
+    if (isExcel && !isProUser()) {
+      alert("Excel uploads are a Pro feature. Please upgrade.");
+      e.target.value = "";
+      return;
+    }
+
+    if (isExcel) readExcel(file);
+    else readCSV(file);
+  }
+
+  function readCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result
+        .split("\n")
+        .map(r => r.split(","));
+      processRows(rows);
+    };
+    reader.readAsText(file);
+  }
+
+  // ✅ HEADER-AWARE EXCEL READER (FINAL FIX)
+  function readExcel(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      console.log("RAW EXCEL ROWS:", rows);
+
+      processRows(rows);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function processRows(rows) {
+    const debitBody = document.querySelector("#debitTable tbody");
+    const creditBody = document.querySelector("#creditTable tbody");
+    const expCatBody = document.querySelector("#expenseCategoryTable tbody");
+    const incCatBody = document.querySelector("#incomeCategoryTable tbody");
+
+    debitBody.innerHTML = creditBody.innerHTML = "";
+    expCatBody.innerHTML = incCatBody.innerHTML = "";
+
+    let expenses = 0, income = 0;
+    const expCats = {}, incCats = {};
+
+    if (!rows.length) return;
+
+    // ✅ Detect header row
+    const headers = rows[0].map(h => String(h).toLowerCase());
+    const dateIdx = headers.findIndex(h => h.includes("date"));
+    const descIdx = headers.findIndex(h => h.includes("desc"));
+    const amountIdx = headers.findIndex(h => h.includes("amount"));
+    const debitIdx = headers.findIndex(h => h.includes("debit"));
+    const creditIdx = headers.findIndex(h => h.includes("credit"));
+
+    rows.slice(1).forEach(row => {
+      const desc = row[descIdx];
+      if (!desc) return;
+
+      const date = row[dateIdx] || "";
+      let debit = 0, credit = 0;
+
+      if (debitIdx >= 0 || creditIdx >= 0) {
+        debit = parseFloat(row[debitIdx]) || 0;
+        credit = parseFloat(row[creditIdx]) || 0;
+      } else if (amountIdx >= 0) {
+        const amt = parseFloat(row[amountIdx]);
+        if (isNaN(amt)) return;
+        if (amt < 0) debit = Math.abs(amt);
+        else credit = amt;
       }
 
-      document.getElementById("fileInput").addEventListener("change", handleFile);
+      const category = categorize(desc);
 
-      function handleFile(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const isExcel = file.name.toLowerCase().endsWith(".xlsx");
-
-        if (isExcel && !isProUser()) {
-          alert("Excel uploads are a Pro feature. Please upgrade.");
-          e.target.value = "";
-          return;
-        }
-
-        if (isExcel) readExcel(file);
-        else readCSV(file);
+      if (debit > 0) {
+        expenses += debit;
+        expCats[category] = (expCats[category] || 0) + debit;
+        debitBody.innerHTML += `
+          <tr><td>${date}</td><td>${desc}</td><td>${category}</td>
+          <td class="negative">$${debit.toFixed(2)}</td></tr>`;
       }
 
-      function readCSV(file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const rows = e.target.result
-            .split("\n")
-            .slice(1)
-            .map(r => r.split(","));
-          processRows(rows);
-        };
-        reader.readAsText(file);
+      if (credit > 0) {
+        income += credit;
+        incCats[category] = (incCats[category] || 0) + credit;
+        creditBody.innerHTML += `
+          <tr><td>${date}</td><td>${desc}</td><td>${category}</td>
+          <td class="positive">$${credit.toFixed(2)}</td></tr>`;
       }
-
-      // ✅ FIXED EXCEL READER
-      function readExcel(file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-          processRows(rows);
-        };
-        reader.readAsArrayBuffer(file);
-      }
-
-      function processRows(rows) {
-        const debitBody = document.querySelector("#debitTable tbody");
-        const creditBody = document.querySelector("#creditTable tbody");
-        const expCatBody = document.querySelector("#expenseCategoryTable tbody");
-        const incCatBody = document.querySelector("#incomeCategoryTable tbody");
-
-        debitBody.innerHTML = creditBody.innerHTML = "";
-        expCatBody.innerHTML = incCatBody.innerHTML = "";
-
-        let expenses = 0, income = 0;
-        const expCats = {}, incCats = {};
-
-        rows.forEach(row => {
-          if (!row || row.length < 3) return;
-
-          const date = row[0];
-          const desc = row[1];
-          let debit = 0, credit = 0;
-
-          if (row.length >= 4) {
-            debit = parseFloat(row[2]) || 0;
-            credit = parseFloat(row[3]) || 0;
-          } else {
-            const amt = parseFloat(row[2]);
-            if (isNaN(amt)) return;
-            if (amt < 0) debit = Math.abs(amt);
-            else credit = amt;
-          }
-
-          if (!desc) return;
-          const category = categorize(desc);
-
-          if (debit > 0) {
-            expenses += debit;
-            expCats[category] = (expCats[category] || 0) + debit;
-            debitBody.innerHTML += `
-              <tr><td>${date||""}</td><td>${desc}</td><td>${category}</td>
-              <td class="negative">$${debit.toFixed(2)}</td></tr>`;
-          }
-
-          if (credit > 0) {
-            income += credit;
-            incCats[category] = (incCats[category] || 0) + credit;
-            creditBody.innerHTML += `
-              <tr><td>${date||""}</td><td>${desc}</td><td>${category}</td>
-              <td class="positive">$${credit.toFixed(2)}</td></tr>`;
-          }
-        });
-
-        document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-        document.getElementById("totalCredits").textContent = income.toFixed(2);
-        document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
-
-        Object.entries(expCats).forEach(([c,v]) =>
-          expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-        );
-
-        Object.entries(incCats).forEach(([c,v]) =>
-          incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-        );
-      }
-
-      function categorize(d) {
-        d = d.toLowerCase();
-        if (d.includes("rent")) return "Rent";
-        if (d.includes("payroll") || d.includes("salary")) return "Payroll";
-        if (d.includes("electric") || d.includes("water") || d.includes("internet")) return "Utilities";
-        if (d.includes("google") || d.includes("facebook") || d.includes("ads")) return "Marketing";
-        if (d.includes("uber") || d.includes("flight")) return "Travel";
-        if (d.includes("office")) return "Office Supplies";
-        return "Miscellaneous";
-      }
-
     });
-  </script>
+
+    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+    document.getElementById("totalCredits").textContent = income.toFixed(2);
+    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+
+    Object.entries(expCats).forEach(([c,v]) =>
+      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
+    );
+
+    Object.entries(incCats).forEach(([c,v]) =>
+      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
+    );
+  }
+
+  function categorize(d) {
+    d = String(d).toLowerCase();
+    if (d.includes("rent")) return "Rent";
+    if (d.includes("payroll") || d.includes("salary")) return "Payroll";
+    if (d.includes("electric") || d.includes("water") || d.includes("internet")) return "Utilities";
+    if (d.includes("google") || d.includes("facebook") || d.includes("ads")) return "Marketing";
+    if (d.includes("uber") || d.includes("flight")) return "Travel";
+    if (d.includes("office")) return "Office Supplies";
+    return "Miscellaneous";
+  }
+
+});
+</script>
 
 </body>
 </html>
