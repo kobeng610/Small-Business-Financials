@@ -128,6 +128,30 @@
     <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
     <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
   </div>
+<!-- CATEGORY TOTALS -->
+<h2>Category Totals</h2>
+
+<h3>Expenses by Category</h3>
+<table id="expenseCategoryTable">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h3>Income by Category</h3>
+<table id="incomeCategoryTable">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Total</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
 
   <!-- EXCEL PARSER (MUST COME FIRST) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -175,40 +199,81 @@
     }
 
     function processRows(rows) {
-      const debitBody = document.querySelector("#debitTable tbody");
-      const creditBody = document.querySelector("#creditTable tbody");
+  const debitBody = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
 
-      debitBody.innerHTML = "";
-      creditBody.innerHTML = "";
+  const expenseCategoryBody = document.querySelector("#expenseCategoryTable tbody");
+  const incomeCategoryBody = document.querySelector("#incomeCategoryTable tbody");
 
-      let expenses = 0;
-      let income = 0;
+  debitBody.innerHTML = "";
+  creditBody.innerHTML = "";
+  expenseCategoryBody.innerHTML = "";
+  incomeCategoryBody.innerHTML = "";
 
-      rows.forEach(row => {
-        const [date, desc, type, amountRaw] = row;
-        const amount = parseFloat(amountRaw);
-        if (!desc || !type || isNaN(amount)) return;
+  let expenses = 0;
+  let income = 0;
 
-        const category = categorize(desc);
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${date || ""}</td>
-          <td>${desc}</td>
-          <td>${category}</td>
-          <td>$${amount.toFixed(2)}</td>
-        `;
+  const expenseCategories = {};
+  const incomeCategories = {};
 
-        if (type.toLowerCase() === "expense") {
-          tr.lastElementChild.className = "negative";
-          debitBody.appendChild(tr);
-          expenses += amount;
-        } else if (type.toLowerCase() === "income") {
-          tr.lastElementChild.className = "positive";
-          creditBody.appendChild(tr);
-          income += amount;
-        }
-      });
+  rows.forEach(row => {
+    const [date, desc, type, amountRaw] = row;
+    const amount = parseFloat(amountRaw);
+    if (!desc || !type || isNaN(amount)) return;
 
+    const category = categorize(desc);
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${date || ""}</td>
+      <td>${desc}</td>
+      <td>${category}</td>
+      <td>$${amount.toFixed(2)}</td>
+    `;
+
+    if (type.toLowerCase() === "expense") {
+      tr.lastElementChild.className = "negative";
+      debitBody.appendChild(tr);
+      expenses += amount;
+      expenseCategories[category] =
+        (expenseCategories[category] || 0) + amount;
+    }
+
+    if (type.toLowerCase() === "income") {
+      tr.lastElementChild.className = "positive";
+      creditBody.appendChild(tr);
+      income += amount;
+      incomeCategories[category] =
+        (incomeCategories[category] || 0) + amount;
+    }
+  });
+
+  // Update summary totals
+  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+  document.getElementById("totalCredits").textContent = income.toFixed(2);
+  document.getElementById("netBalance").textContent =
+    (income - expenses).toFixed(2);
+
+  // Render expense category totals
+  Object.keys(expenseCategories).forEach(cat => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${cat}</td>
+      <td class="negative">$${expenseCategories[cat].toFixed(2)}</td>
+    `;
+    expenseCategoryBody.appendChild(row);
+  });
+
+  // Render income category totals
+  Object.keys(incomeCategories).forEach(cat => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${cat}</td>
+      <td class="positive">$${incomeCategories[cat].toFixed(2)}</td>
+    `;
+    incomeCategoryBody.appendChild(row);
+  });
+}
       document.getElementById("totalDebits").textContent = expenses.toFixed(2);
       document.getElementById("totalCredits").textContent = income.toFixed(2);
       document.getElementById("netBalance").textContent =
