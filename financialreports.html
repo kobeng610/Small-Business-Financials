@@ -99,7 +99,10 @@
     <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
   </div>
 
+  <div id="categoryTotalsSection" style="display:none;">
   <h2>Category Totals</h2>
+  ...
+</div>
 
   <h3>Expenses by Category</h3>
   <table id="expenseCategoryTable">
@@ -123,12 +126,23 @@
       document.getElementById("fileInput").addEventListener("change", handleFile);
 
       function handleFile(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+  const file = e.target.files[0];
+  if (!file) return;
 
-        if (file.name.toLowerCase().endsWith(".csv")) readCSV(file);
-        else readExcel(file);
-      }
+  const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+
+  if (isExcel && !isProUser()) {
+    alert("Excel uploads are a Pro feature. Please upgrade.");
+    e.target.value = "";
+    return;
+  }
+
+  if (file.name.toLowerCase().endsWith(".csv")) {
+    readCSV(file);
+  } else {
+    readExcel(file);
+  }
+}
 
       function readCSV(file) {
         const reader = new FileReader();
