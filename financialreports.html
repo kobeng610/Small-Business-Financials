@@ -143,18 +143,23 @@ document.addEventListener("DOMContentLoaded", () => {
   function readCSV(file) {
   const reader = new FileReader();
   reader.onload = e => {
-    const rows = e.target.result
-      .trim()
+    const text = e.target.result.trim();
+
+    const rows = text
       .split("\n")
       .map(line =>
         line
           .replace(/\r/g, "")
           .split(",")
           .map(cell => cell.trim())
-      );
+      )
+      .filter(row => row.length === 4); // 🔑 enforce schema
+
+    console.log("RAW CSV ROWS:", rows);
 
     processRows(rows);
   };
+
   reader.readAsText(file);
 }
 
@@ -189,34 +194,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // skip header
     rows.slice(1).forEach(row => {
-      if (!row || row.length < 4) return;
+  const date = row[0];
+  const description = row[1];
+  const type = String(row[2]).toLowerCase();
+  const amount = parseFloat(row[3]);
 
-      const excelDate = row[0];
-      const description = row[1];
-      const type = String(row[2]).toLowerCase();
-      const amount = parseFloat(row[3]);
+  if (!description || isNaN(amount)) return;
 
-      if (!description || isNaN(amount)) return;
+  const category = categorize(description);
 
-      const date = typeof excelDate === "number"
-        ? new Date((excelDate - 25569) * 86400 * 1000).toISOString().split("T")[0]
-        : excelDate;
+  if (type === "expense" || amount < 0) {
+    const val = Math.abs(amount);
+    expenses += val;
+    expenseCategories[category] = (expenseCategories[category] || 0) + val;
 
-      const category = categorize(description);
+    debitBody.innerHTML += `
+      <tr>
+        <td>${date}</td>
+        <td>${description}</td>
+        <td>${category}</td>
+        <td class="negative">$${val.toFixed(2)}</td>
+      </tr>
+    `;
+  }
 
-      if (type === "expense" || amount < 0) {
-        const val = Math.abs(amount);
-        expenses += val;
-        expenseCategories[category] = (expenseCategories[category] || 0) + val;
+  if (type === "income" || amount > 0) {
+    const val = Math.abs(amount);
+    income += val;
+    incomeCategories[category] = (incomeCategories[category] || 0) + val;
 
-        debitBody.innerHTML += `
-          <tr>
-            <td>${date}</td>
-            <td>${description}</td>
-            <td>${category}</td>
-            <td class="negative">$${val.toFixed(2)}</td>
-          </tr>`;
-      }
+    creditBody.innerHTML += `
+      <tr>
+        <td>${date}</td>
+        <td>${description}</td>
+        <td>${category}</td>
+        <td class="positive">$${val.toFixed(2)}</td>
+      </tr>
+    `;
+  }
+});
 
       if (type === "income" || amount > 0) {
         const val = Math.abs(amount);
