@@ -82,16 +82,25 @@
   <script src="js/gating.js"></script>
   <script src="js/onboarding.js"></script>
 <script>
-  const user = getCurrentUser();
-  if (user && !user.isPro) {
-    document.getElementById("upgradeBanner").style.display = "block";
-  }
-
   function upgradeToPro() {
-    const updatedUser = { ...user, isPro: true };
-    localStorage.setItem("sbfa_user", JSON.stringify(updatedUser));
+    const user = getCurrentUser();
+
+    if (!user) {
+      alert("No user found. Please log in again.");
+      return;
+    }
+
+    user.isPro = true;
+    localStorage.setItem("sbfa_user", JSON.stringify(user));
+
     alert("🎉 You are now a Pro user!");
     location.reload();
+  }
+
+  // Show upgrade banner if Free
+  const currentUser = getCurrentUser();
+  if (currentUser && !currentUser.isPro) {
+    document.getElementById("upgradeBanner").style.display = "block";
   }
 </script>
 
