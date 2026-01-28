@@ -142,13 +142,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const savedReportsSelect = document.getElementById("savedReports");
   const loadReportBtn = document.getElementById("loadReportBtn");
   const deleteReportBtn = document.getElementById("deleteReportBtn");
+  const renameReportBtn = document.getElementById("renameReportBtn");
 
   if (isProUser()) {
     getSavedReports().forEach(report => {
       const option = document.createElement("option");
       option.value = report.id;
       option.textContent =
-        report.name || new Date(report.createdAt).toLocaleString();
+        option.textContent =
+  report.name || new Date(report.createdAt).toLocaleString();
       savedReportsSelect.appendChild(option);
     });
   }
@@ -176,6 +178,24 @@ document.addEventListener("DOMContentLoaded", () => {
       alert("Saved reports are a Pro feature.");
       return;
     }
+renameReportBtn.addEventListener("click", () => {
+  if (!isProUser()) {
+    alert("Renaming reports is a Pro feature.");
+    return;
+  }
+
+  const id = savedReportsSelect.value;
+  if (!id) {
+    alert("Select a report to rename.");
+    return;
+  }
+
+  const newName = prompt("Enter a new name for this report:");
+  if (!newName || !newName.trim()) return;
+
+  renameReport(id, newName);
+  location.reload();
+});
 
     const id = savedReportsSelect.value;
     if (!id) {
