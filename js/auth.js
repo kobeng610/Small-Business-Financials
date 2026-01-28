@@ -1,53 +1,56 @@
 // js/auth.js
 
-const USER_KEY = "sbfa_user";
+const STORAGE_KEY = "sbfa_user";
 
-/* ---------- Core helpers ---------- */
-function getUser() {
-  const raw = localStorage.getItem(USER_KEY);
-  return raw ? JSON.parse(raw) : null;
-}
+/* ======================
+   AUTH HELPERS
+====================== */
 
-function setUser(user) {
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
-}
-
-/* ---------- Auth ---------- */
 function loginUser(email) {
+  if (!email) {
+    alert("Email is required");
+    return;
+  }
+
   const user = {
-    email,
-    isPro: false,        // default = Free
+    email: email,
+    isPro: false,          // default Free plan
     loggedInAt: Date.now()
   };
-  setUser(user);
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+
+  // ✅ redirect after login
   window.location.href = "dashboard.html";
 }
 
 function logoutUser() {
-  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(STORAGE_KEY);
   window.location.href = "login.html";
 }
 
+function getCurrentUser() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : null;
+}
+
 function requireAuth() {
-  const user = getUser();
+  const user = getCurrentUser();
   if (!user) {
     window.location.href = "login.html";
   }
 }
 
-/* ---------- Pro / Feature gating ---------- */
 function isProUser() {
-  const user = getUser();
-  return !!(user && user.isPro === true);
+  const user = getCurrentUser();
+  return user && user.isPro === true;
 }
 
-/* ---------- TEMP DEV UPGRADE (for testing) ---------- */
 function upgradeToPro() {
-  const user = getUser();
+  const user = getCurrentUser();
   if (!user) return;
 
   user.isPro = true;
-  setUser(user);
-  alert("🎉 You are now a Pro user!");
-  location.reload();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 }
+
