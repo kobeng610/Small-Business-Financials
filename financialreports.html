@@ -217,9 +217,13 @@
   const incomeCategories = {};
 
   rows.forEach(row => {
-    const [date, desc, type, amountRaw] = row;
+   const date = row[0];
+const desc = row[1];
+const type = row[2] || "Expense"; // fallback
+const amountRaw = row[3] ?? row[2]; // supports 3-column receipts
+
     const amount = parseFloat(amountRaw);
-    if (!desc || !type || isNaN(amount)) return;
+   if (!desc || isNaN(amount)) return;
 
     const category = categorize(desc);
 
