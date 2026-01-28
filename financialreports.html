@@ -5,7 +5,7 @@
   <title>Financial Reports</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
- <link rel="stylesheet" href="/css/styles.css?v=1" />
+  <link rel="stylesheet" href="/css/styles.css?v=1" />
 
   <style>
     body {
@@ -20,7 +20,6 @@
       align-items: center;
       margin-bottom: 30px;
     }
-    header { margin-bottom: 30px; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -49,72 +48,71 @@
 
 <body>
 
-  <!-- AUTH -->
-  <script src="js/auth.js"></script>
-  <script>requireAuth();</script>
+<!-- AUTH -->
+<script src="js/auth.js"></script>
+<script>requireAuth();</script>
 
-  <nav>
-    <strong>Small Business Financials</strong>
-    <div>
-      <a href="dashboard.html">Dashboard</a> |
-      <a href="financialreports.html">Financial Reports</a> |
-      <a href="#" onclick="logoutUser()">Logout</a>
-    </div>
-  </nav>
+<nav>
+  <strong>Small Business Financials</strong>
+  <div>
+    <a href="dashboard.html">Dashboard</a> |
+    <a href="financialreports.html">Financial Reports</a> |
+    <a href="#" onclick="logoutUser()">Logout</a>
+  </div>
+</nav>
 
-  <header>
-    <h1>Financial Reports</h1>
-    <p>Upload a CSV or Excel file to generate income, expense, and profit reports.</p>
-  </header>
+<header>
+  <h1>Financial Reports</h1>
+  <p>Upload a CSV or Excel file to generate income, expense, and profit reports.</p>
+</header>
 
-  <input type="file" id="fileInput" accept=".csv,.xlsx" />
+<input type="file" id="fileInput" accept=".csv,.xlsx" />
 
-  <h2>Expense Transactions</h2>
-  <table id="debitTable">
-    <thead>
-      <tr>
-        <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
-      </tr>
-    </thead>
+<h2>Expense Transactions</h2>
+<table id="debitTable">
+  <thead>
+    <tr>
+      <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Income Transactions</h2>
+<table id="creditTable">
+  <thead>
+    <tr>
+      <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Financial Summary</h2>
+<div class="summary">
+  <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
+  <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
+  <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
+</div>
+
+<!-- PRO ONLY -->
+<div id="categoryTotalsSection" style="display:none;">
+  <h2>Category Totals</h2>
+
+  <h3>Expenses by Category</h3>
+  <table id="expenseCategoryTable">
+    <thead><tr><th>Category</th><th>Total</th></tr></thead>
     <tbody></tbody>
   </table>
 
-  <h2>Income Transactions</h2>
-  <table id="creditTable">
-    <thead>
-      <tr>
-        <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
-      </tr>
-    </thead>
+  <h3>Income by Category</h3>
+  <table id="incomeCategoryTable">
+    <thead><tr><th>Category</th><th>Total</th></tr></thead>
     <tbody></tbody>
   </table>
+</div>
 
-  <h2>Financial Summary</h2>
-  <div class="summary">
-    <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
-    <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
-    <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
-  </div>
-
-  <!-- PRO ONLY -->
-  <div id="categoryTotalsSection" style="display:none;">
-    <h2>Category Totals</h2>
-
-    <h3>Expenses by Category</h3>
-    <table id="expenseCategoryTable">
-      <thead><tr><th>Category</th><th>Total</th></tr></thead>
-      <tbody></tbody>
-    </table>
-
-    <h3>Income by Category</h3>
-    <table id="incomeCategoryTable">
-      <thead><tr><th>Category</th><th>Total</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <!-- XLSX -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -141,27 +139,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function readCSV(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const text = e.target.result.trim();
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result
+        .trim()
+        .split("\n")
+        .map(line =>
+          line.replace(/\r/g, "").split(",").map(c => c.trim())
+        );
 
-    const rows = text
-      .split("\n")
-      .map(line =>
-        line
-          .replace(/\r/g, "")
-          .split(",")
-          .map(cell => cell.trim())
-      )
-      .filter(row => row.length === 4); // 🔑 enforce schema
-
-    console.log("RAW CSV ROWS:", rows);
-
-    processRows(rows);
-  };
-
-  reader.readAsText(file);
-}
+      processRows(rows);
+    };
+    reader.readAsText(file);
+  }
 
   function readExcel(file) {
     const reader = new FileReader();
@@ -170,6 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
       processRows(rows);
     };
     reader.readAsArrayBuffer(file);
@@ -181,10 +172,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const expCatBody = document.querySelector("#expenseCategoryTable tbody");
     const incCatBody = document.querySelector("#incomeCategoryTable tbody");
 
-    debitBody.innerHTML = "";
-    creditBody.innerHTML = "";
-    expCatBody.innerHTML = "";
-    incCatBody.innerHTML = "";
+    debitBody.innerHTML = creditBody.innerHTML = "";
+    expCatBody.innerHTML = incCatBody.innerHTML = "";
 
     let expenses = 0;
     let income = 0;
@@ -192,47 +181,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const expenseCategories = {};
     const incomeCategories = {};
 
-    // skip header
     rows.slice(1).forEach(row => {
-  const date = row[0];
-  const description = row[1];
-  const type = String(row[2]).toLowerCase();
-  const amount = parseFloat(row[3]);
+      if (!row || row.length < 4) return;
 
-  if (!description || isNaN(amount)) return;
+      const date = row[0];
+      const description = row[1];
+      const type = String(row[2]).toLowerCase();
+      const amount = parseFloat(row[3]);
 
-  const category = categorize(description);
+      if (!description || isNaN(amount)) return;
 
-  if (type === "expense" || amount < 0) {
-    const val = Math.abs(amount);
-    expenses += val;
-    expenseCategories[category] = (expenseCategories[category] || 0) + val;
+      const category = categorize(description);
 
-    debitBody.innerHTML += `
-      <tr>
-        <td>${date}</td>
-        <td>${description}</td>
-        <td>${category}</td>
-        <td class="negative">$${val.toFixed(2)}</td>
-      </tr>
-    `;
-  }
+      if (type === "expense" || amount < 0) {
+        const val = Math.abs(amount);
+        expenses += val;
+        expenseCategories[category] = (expenseCategories[category] || 0) + val;
 
-  if (type === "income" || amount > 0) {
-    const val = Math.abs(amount);
-    income += val;
-    incomeCategories[category] = (incomeCategories[category] || 0) + val;
-
-    creditBody.innerHTML += `
-      <tr>
-        <td>${date}</td>
-        <td>${description}</td>
-        <td>${category}</td>
-        <td class="positive">$${val.toFixed(2)}</td>
-      </tr>
-    `;
-  }
-});
+        debitBody.innerHTML += `
+          <tr>
+            <td>${date}</td>
+            <td>${description}</td>
+            <td>${category}</td>
+            <td class="negative">$${val.toFixed(2)}</td>
+          </tr>`;
+      }
 
       if (type === "income" || amount > 0) {
         const val = Math.abs(amount);
@@ -254,21 +227,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("netBalance").textContent =
       (income - expenses).toFixed(2);
 
-    Object.entries(expenseCategories).forEach(([cat, total]) => {
-      expCatBody.innerHTML += `
-        <tr>
-          <td>${cat}</td>
-          <td class="negative">$${total.toFixed(2)}</td>
-        </tr>`;
-    });
+    Object.entries(expenseCategories).forEach(([c,v]) =>
+      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
+    );
 
-    Object.entries(incomeCategories).forEach(([cat, total]) => {
-      incCatBody.innerHTML += `
-        <tr>
-          <td>${cat}</td>
-          <td class="positive">$${total.toFixed(2)}</td>
-        </tr>`;
-    });
+    Object.entries(incomeCategories).forEach(([c,v]) =>
+      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
+    );
   }
 
   function categorize(d) {
@@ -287,4 +252,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+
 
