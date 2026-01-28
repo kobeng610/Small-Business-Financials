@@ -121,7 +121,18 @@
 
   <!-- REPORT LOGIC -->
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
+   <script>
+document.addEventListener("DOMContentLoaded", () => {
+
+  // 👉 ADD THIS BLOCK HERE
+  if (isProUser()) {
+    document.getElementById("categoryTotalsSection").style.display = "block";
+  }
+
+  document.getElementById("fileInput").addEventListener("change", handleFile);
+
+  function handleFile(e) {
+
 
       document.getElementById("fileInput").addEventListener("change", handleFile);
 
