@@ -51,9 +51,15 @@
 
   <!-- AUTH (MUST LOAD FIRST) -->
   <script src="js/auth.js"></script>
-  <script>
-    requireAuth();
-  </script>
+<script>
+  requireAuth();
+
+  document.addEventListener("DOMContentLoaded", () => {
+    if (!isProUser()) {
+      document.getElementById("upgradeBanner").style.display = "block";
+    }
+  });
+</script>
 
   <!-- NAV -->
   <nav>
