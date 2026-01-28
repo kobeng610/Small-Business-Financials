@@ -49,13 +49,11 @@
 
 <body>
 
-  <!-- AUTH GUARD (MUST BE FIRST) -->
+  <!-- AUTH (MUST LOAD FIRST) -->
   <script src="js/auth.js"></script>
-  <script>
-    requireAuth();
-  </script>
+  <script>requireAuth();</script>
 
-  <!-- NAVIGATION -->
+  <!-- NAV -->
   <nav>
     <strong>Small Business Financials</strong>
     <div>
@@ -72,6 +70,7 @@
 
   <input type="file" id="fileInput" accept=".csv,.xlsx" />
 
+  <!-- EXPENSES -->
   <h2>Expense Transactions</h2>
   <table id="debitTable">
     <thead>
@@ -82,6 +81,7 @@
     <tbody></tbody>
   </table>
 
+  <!-- INCOME -->
   <h2>Income Transactions</h2>
   <table id="creditTable">
     <thead>
@@ -92,6 +92,7 @@
     <tbody></tbody>
   </table>
 
+  <!-- SUMMARY -->
   <h2>Financial Summary</h2>
   <div class="summary">
     <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
@@ -99,66 +100,59 @@
     <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
   </div>
 
+  <!-- CATEGORY TOTALS (PRO ONLY) -->
   <div id="categoryTotalsSection" style="display:none;">
-  <h2>Category Totals</h2>
-  ...
-</div>
+    <h2>Category Totals</h2>
 
-  <h3>Expenses by Category</h3>
-  <table id="expenseCategoryTable">
-    <thead><tr><th>Category</th><th>Total</th></tr></thead>
-    <tbody></tbody>
-  </table>
+    <h3>Expenses by Category</h3>
+    <table id="expenseCategoryTable">
+      <thead><tr><th>Category</th><th>Total</th></tr></thead>
+      <tbody></tbody>
+    </table>
 
-  <h3>Income by Category</h3>
-  <table id="incomeCategoryTable">
-    <thead><tr><th>Category</th><th>Total</th></tr></thead>
-    <tbody></tbody>
-  </table>
+    <h3>Income by Category</h3>
+    <table id="incomeCategoryTable">
+      <thead><tr><th>Category</th><th>Total</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
   <!-- EXCEL LIBRARY -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <!-- REPORT LOGIC -->
   <script>
-   <script>
-document.addEventListener("DOMContentLoaded", () => {
+    document.addEventListener("DOMContentLoaded", () => {
 
-  // 👉 ADD THIS BLOCK HERE
-  if (isProUser()) {
-    document.getElementById("categoryTotalsSection").style.display = "block";
-  }
-
-  document.getElementById("fileInput").addEventListener("change", handleFile);
-
-  function handleFile(e) {
-
+      if (isProUser()) {
+        document.getElementById("categoryTotalsSection").style.display = "block";
+      }
 
       document.getElementById("fileInput").addEventListener("change", handleFile);
 
       function handleFile(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+        const file = e.target.files[0];
+        if (!file) return;
 
-  const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+        const isExcel = file.name.toLowerCase().endsWith(".xlsx");
 
-  if (isExcel && !isProUser()) {
-    alert("Excel uploads are a Pro feature. Please upgrade.");
-    e.target.value = "";
-    return;
-  }
+        if (isExcel && !isProUser()) {
+          alert("Excel uploads are a Pro feature. Please upgrade.");
+          e.target.value = "";
+          return;
+        }
 
-  if (file.name.toLowerCase().endsWith(".csv")) {
-    readCSV(file);
-  } else {
-    readExcel(file);
-  }
-}
+        if (isExcel) readExcel(file);
+        else readCSV(file);
+      }
 
       function readCSV(file) {
         const reader = new FileReader();
         reader.onload = e => {
-          const rows = e.target.result.split("\n").slice(1).map(r => r.split(","));
+          const rows = e.target.result
+            .split("\n")
+            .slice(1)
+            .map(r => r.split(","));
           processRows(rows);
         };
         reader.readAsText(file);
@@ -187,24 +181,40 @@ document.addEventListener("DOMContentLoaded", () => {
         let expenses = 0, income = 0;
         const expCats = {}, incCats = {};
 
-        rows.forEach(r => {
-          const date = r[0];
-          const desc = r[1];
-          const type = r[2] || "Expense";
-          const amount = parseFloat(r[3] ?? r[2]);
-          if (!desc || isNaN(amount)) return;
+        rows.forEach(row => {
+          if (!row || row.length < 3) return;
 
-          const cat = categorize(desc);
-          const tr = `<tr><td>${date||""}</td><td>${desc}</td><td>${cat}</td><td>$${amount.toFixed(2)}</td></tr>`;
+          const date = row[0];
+          const desc = row[1];
+          let debit = 0, credit = 0;
 
-          if (type.toLowerCase() === "expense") {
-            debitBody.innerHTML += tr;
-            expenses += amount;
-            expCats[cat] = (expCats[cat] || 0) + amount;
+          if (row.length >= 4) {
+            debit = parseFloat(row[2]) || 0;
+            credit = parseFloat(row[3]) || 0;
           } else {
-            creditBody.innerHTML += tr;
-            income += amount;
-            incCats[cat] = (incCats[cat] || 0) + amount;
+            const amt = parseFloat(row[2]);
+            if (isNaN(amt)) return;
+            if (amt < 0) debit = Math.abs(amt);
+            else credit = amt;
+          }
+
+          if (!desc) return;
+          const category = categorize(desc);
+
+          if (debit > 0) {
+            expenses += debit;
+            expCats[category] = (expCats[category] || 0) + debit;
+            debitBody.innerHTML += `
+              <tr><td>${date||""}</td><td>${desc}</td><td>${category}</td>
+              <td class="negative">$${debit.toFixed(2)}</td></tr>`;
+          }
+
+          if (credit > 0) {
+            income += credit;
+            incCats[category] = (incCats[category] || 0) + credit;
+            creditBody.innerHTML += `
+              <tr><td>${date||""}</td><td>${desc}</td><td>${category}</td>
+              <td class="positive">$${credit.toFixed(2)}</td></tr>`;
           }
         });
 
@@ -225,8 +235,8 @@ document.addEventListener("DOMContentLoaded", () => {
         d = d.toLowerCase();
         if (d.includes("rent")) return "Rent";
         if (d.includes("payroll") || d.includes("salary")) return "Payroll";
-        if (d.includes("electric") || d.includes("water")) return "Utilities";
-        if (d.includes("google") || d.includes("facebook")) return "Marketing";
+        if (d.includes("electric") || d.includes("water") || d.includes("internet")) return "Utilities";
+        if (d.includes("google") || d.includes("facebook") || d.includes("ads")) return "Marketing";
         if (d.includes("uber") || d.includes("flight")) return "Travel";
         if (d.includes("office")) return "Office Supplies";
         return "Miscellaneous";
@@ -237,3 +247,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+
