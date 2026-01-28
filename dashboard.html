@@ -70,10 +70,30 @@
     </section>
 
   </main>
+<div id="upgradeBanner" style="margin-top:20px;display:none;">
+  <p>
+    You’re on the <strong>Free</strong> plan.
+    Upgrade to unlock Excel uploads and advanced analytics.
+  </p>
+  <button onclick="upgradeToPro()">Upgrade to Pro</button>
+</div>
 
   <!-- OPTIONAL SCRIPTS -->
   <script src="js/gating.js"></script>
   <script src="js/onboarding.js"></script>
+<script>
+  const user = getCurrentUser();
+  if (user && !user.isPro) {
+    document.getElementById("upgradeBanner").style.display = "block";
+  }
+
+  function upgradeToPro() {
+    const updatedUser = { ...user, isPro: true };
+    localStorage.setItem("sbfa_user", JSON.stringify(updatedUser));
+    alert("🎉 You are now a Pro user!");
+    location.reload();
+  }
+</script>
 
 </body>
 </html>
