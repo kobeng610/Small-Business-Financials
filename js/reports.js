@@ -2,7 +2,7 @@
 
 function getReportsKey() {
   const user = getCurrentUser();
-  if (!user) return null;
+  if (!user || !user.email) return null;
   return `sbfa_reports_${user.email}`;
 }
 
@@ -12,13 +12,18 @@ function saveReport(reportData) {
 
   const existing = JSON.parse(localStorage.getItem(key) || "[]");
 
-  existing.unshift({
+  const record = {
     id: Date.now(),
+    name: reportData.name || `Report ${existing.length + 1}`,
     createdAt: new Date().toISOString(),
-    ...reportData
-  });
+    rows: reportData.rows,
+    totals: reportData.totals
+  };
 
+  existing.unshift(record);
   localStorage.setItem(key, JSON.stringify(existing));
+
+  console.log("✅ Report saved:", record);
 }
 
 function getSavedReports() {
@@ -27,29 +32,22 @@ function getSavedReports() {
   return JSON.parse(localStorage.getItem(key) || "[]");
 }
 
-function clearReports() {
-  const key = getReportsKey();
-  if (!key) return;
-  localStorage.removeItem(key);
-}
 function deleteReport(reportId) {
   const key = getReportsKey();
   if (!key) return;
 
-  const reports = JSON.parse(localStorage.getItem(key) || "[]");
-  const updated = reports.filter(r => String(r.id) !== String(reportId));
-
-  localStorage.setItem(key, JSON.stringify(updated));
+  const filtered = getSavedReports().filter(r => r.id !== Number(reportId));
+  localStorage.setItem(key, JSON.stringify(filtered));
 }
+
 function renameReport(reportId, newName) {
   const key = getReportsKey();
   if (!key) return;
 
-  const reports = JSON.parse(localStorage.getItem(key) || "[]");
-
-  const report = reports.find(r => String(r.id) === String(reportId));
+  const reports = getSavedReports();
+  const report = reports.find(r => r.id === Number(reportId));
   if (!report) return;
 
-  report.name = newName.trim();
+  report.name = newName;
   localStorage.setItem(key, JSON.stringify(reports));
 }
