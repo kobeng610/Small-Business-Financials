@@ -133,6 +133,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const file = e.target.files[0];
     if (!file) return;
 
+  const saved = getSavedReports();
+if (saved.length > 0) {
+  processRows(saved[0].rows);
+}
     const isExcel = file.name.toLowerCase().endsWith(".xlsx");
 
     if (isExcel && !isProUser()) {
@@ -216,6 +220,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = income.toFixed(2);
     document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+    saveReport({
+  rows,
+  totals: {
+    income,
+    expenses,
+    net: income - expenses
+  }
+});
 
     Object.entries(expenseCats).forEach(([c,v]) =>
       expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
