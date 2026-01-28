@@ -49,11 +49,10 @@
 
 <body>
 
-  <!-- AUTH (MUST LOAD FIRST) -->
+  <!-- AUTH -->
   <script src="js/auth.js"></script>
   <script>requireAuth();</script>
 
-  <!-- NAV -->
   <nav>
     <strong>Small Business Financials</strong>
     <div>
@@ -70,7 +69,6 @@
 
   <input type="file" id="fileInput" accept=".csv,.xlsx" />
 
-  <!-- EXPENSES -->
   <h2>Expense Transactions</h2>
   <table id="debitTable">
     <thead>
@@ -81,7 +79,6 @@
     <tbody></tbody>
   </table>
 
-  <!-- INCOME -->
   <h2>Income Transactions</h2>
   <table id="creditTable">
     <thead>
@@ -92,7 +89,6 @@
     <tbody></tbody>
   </table>
 
-  <!-- SUMMARY -->
   <h2>Financial Summary</h2>
   <div class="summary">
     <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
@@ -100,7 +96,7 @@
     <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
   </div>
 
-  <!-- CATEGORY TOTALS (PRO ONLY) -->
+  <!-- PRO ONLY -->
   <div id="categoryTotalsSection" style="display:none;">
     <h2>Category Totals</h2>
 
@@ -117,10 +113,9 @@
     </table>
   </div>
 
-  <!-- EXCEL LIBRARY -->
+  <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  <!-- REPORT LOGIC -->
   <script>
     document.addEventListener("DOMContentLoaded", () => {
 
@@ -158,15 +153,17 @@
         reader.readAsText(file);
       }
 
+      // ✅ FIXED EXCEL READER
       function readExcel(file) {
         const reader = new FileReader();
         reader.onload = e => {
-          const wb = XLSX.read(e.target.result, { type: "binary" });
-          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
           processRows(rows);
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
       }
 
       function processRows(rows) {
