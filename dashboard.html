@@ -36,18 +36,26 @@
       padding: 10px 16px;
       cursor: pointer;
     }
+
+    #upgradeBanner {
+      margin-top: 30px;
+      padding: 20px;
+      background: #fff3cd;
+      border: 1px solid #ffeeba;
+      display: none;
+    }
   </style>
 </head>
 
 <body>
 
-  <!-- AUTH GUARD -->
+  <!-- AUTH (MUST LOAD FIRST) -->
   <script src="js/auth.js"></script>
   <script>
     requireAuth();
   </script>
 
-  <!-- NAVIGATION -->
+  <!-- NAV -->
   <nav>
     <strong>Small Business Financials</strong>
     <div>
@@ -57,7 +65,7 @@
     </div>
   </nav>
 
-  <!-- DASHBOARD CONTENT -->
+  <!-- MAIN -->
   <main>
 
     <section class="section">
@@ -69,41 +77,25 @@
       </a>
     </section>
 
+    <!-- UPGRADE BANNER (FREE USERS ONLY) -->
+    <div id="upgradeBanner">
+      <p>
+        You’re on the <strong>Free</strong> plan.<br />
+        Upgrade to unlock Excel uploads and advanced analytics.
+      </p>
+      <button onclick="upgradeToPro()">Upgrade to Pro</button>
+    </div>
+
   </main>
-<div id="upgradeBanner" style="margin-top:20px;display:none;">
-  <p>
-    You’re on the <strong>Free</strong> plan.
-    Upgrade to unlock Excel uploads and advanced analytics.
-  </p>
-  <button onclick="upgradeToPro()">Upgrade to Pro</button>
-</div>
 
-  <!-- OPTIONAL SCRIPTS -->
-  <script src="js/gating.js"></script>
-  <script src="js/onboarding.js"></script>
-<script>
-  function upgradeToPro() {
-    const user = getCurrentUser();
-
-    if (!user) {
-      alert("No user found. Please log in again.");
-      return;
-    }
-
-    user.isPro = true;
-    localStorage.setItem("sbfa_user", JSON.stringify(user));
-
-    alert("🎉 You are now a Pro user!");
-    location.reload();
-  }
-
-  // Show upgrade banner if Free
-  const currentUser = getCurrentUser();
-  if (currentUser && !currentUser.isPro) {
-    document.getElementById("upgradeBanner").style.display = "block";
-  }
-</script>
+  <!-- PAGE LOGIC -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!isProUser()) {
+        document.getElementById("upgradeBanner").style.display = "block";
+      }
+    });
+  </script>
 
 </body>
 </html>
-
