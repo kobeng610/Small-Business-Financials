@@ -138,21 +138,33 @@ document.addEventListener("DOMContentLoaded", () => {
     isExcel ? readExcel(file) : readCSV(file);
   }
 
+  /* ======================
+     CSV READER (FIXED)
+     ====================== */
   function readCSV(file) {
     const reader = new FileReader();
     reader.onload = e => {
-      const rows = e.target.result
-        .trim()
+      const text = e.target.result.trim();
+
+      const rows = text
         .split("\n")
         .map(line =>
-          line.replace(/\r/g, "").split(",").map(c => c.trim())
+          line
+            .replace(/\r/g, "")
+            .split(",")
+            .map(cell => cell.trim())
         );
 
+      console.log("CSV ROWS:", rows);
       processRows(rows);
     };
+
     reader.readAsText(file);
   }
 
+  /* ======================
+     EXCEL READER (WORKING)
+     ====================== */
   function readExcel(file) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -161,19 +173,25 @@ document.addEventListener("DOMContentLoaded", () => {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+      console.log("EXCEL ROWS:", rows);
       processRows(rows);
     };
     reader.readAsArrayBuffer(file);
   }
 
+  /* ======================
+     SHARED PROCESSOR
+     ====================== */
   function processRows(rows) {
     const debitBody = document.querySelector("#debitTable tbody");
     const creditBody = document.querySelector("#creditTable tbody");
     const expCatBody = document.querySelector("#expenseCategoryTable tbody");
     const incCatBody = document.querySelector("#incomeCategoryTable tbody");
 
-    debitBody.innerHTML = creditBody.innerHTML = "";
-    expCatBody.innerHTML = incCatBody.innerHTML = "";
+    debitBody.innerHTML = "";
+    creditBody.innerHTML = "";
+    expCatBody.innerHTML = "";
+    incCatBody.innerHTML = "";
 
     let expenses = 0;
     let income = 0;
@@ -181,13 +199,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const expenseCategories = {};
     const incomeCategories = {};
 
+    // 🔑 Skip header row safely
     rows.slice(1).forEach(row => {
-      if (!row || row.length < 4) return;
+      if (!row || row.length < 3) return;
 
       const date = row[0];
       const description = row[1];
       const type = String(row[2]).toLowerCase();
-      const amount = parseFloat(row[3]);
+      const amount = parseFloat(row[3] ?? row[2]);
 
       if (!description || isNaN(amount)) return;
 
@@ -200,7 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         debitBody.innerHTML += `
           <tr>
-            <td>${date}</td>
+            <td>${formatDate(date)}</td>
             <td>${description}</td>
             <td>${category}</td>
             <td class="negative">$${val.toFixed(2)}</td>
@@ -214,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         creditBody.innerHTML += `
           <tr>
-            <td>${date}</td>
+            <td>${formatDate(date)}</td>
             <td>${description}</td>
             <td>${category}</td>
             <td class="positive">$${val.toFixed(2)}</td>
@@ -227,13 +246,33 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("netBalance").textContent =
       (income - expenses).toFixed(2);
 
-    Object.entries(expenseCategories).forEach(([c,v]) =>
-      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-    );
+    Object.entries(expenseCategories).forEach(([cat, total]) => {
+      expCatBody.innerHTML += `
+        <tr>
+          <td>${cat}</td>
+          <td class="negative">$${total.toFixed(2)}</td>
+        </tr>`;
+    });
 
-    Object.entries(incomeCategories).forEach(([c,v]) =>
-      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-    );
+    Object.entries(incomeCategories).forEach(([cat, total]) => {
+      incCatBody.innerHTML += `
+        <tr>
+          <td>${cat}</td>
+          <td class="positive">$${total.toFixed(2)}</td>
+        </tr>`;
+    });
+  }
+
+  /* ======================
+     HELPERS
+     ====================== */
+  function formatDate(d) {
+    if (typeof d === "number") {
+      return new Date((d - 25569) * 86400 * 1000)
+        .toISOString()
+        .split("T")[0];
+    }
+    return d || "";
   }
 
   function categorize(d) {
