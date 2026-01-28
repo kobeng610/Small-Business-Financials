@@ -41,3 +41,15 @@ function deleteReport(reportId) {
 
   localStorage.setItem(key, JSON.stringify(updated));
 }
+function renameReport(reportId, newName) {
+  const key = getReportsKey();
+  if (!key) return;
+
+  const reports = JSON.parse(localStorage.getItem(key) || "[]");
+
+  const report = reports.find(r => String(r.id) === String(reportId));
+  if (!report) return;
+
+  report.name = newName.trim();
+  localStorage.setItem(key, JSON.stringify(reports));
+}
