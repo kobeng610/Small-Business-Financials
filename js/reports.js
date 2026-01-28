@@ -32,3 +32,12 @@ function clearReports() {
   if (!key) return;
   localStorage.removeItem(key);
 }
+function deleteReport(reportId) {
+  const key = getReportsKey();
+  if (!key) return;
+
+  const reports = JSON.parse(localStorage.getItem(key) || "[]");
+  const updated = reports.filter(r => String(r.id) !== String(reportId));
+
+  localStorage.setItem(key, JSON.stringify(updated));
+}
