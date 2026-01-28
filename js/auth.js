@@ -5,9 +5,10 @@ const AUTH_KEY = "sbfa_user";
 // LOGIN
 function loginUser(email) {
   localStorage.setItem(
-    AUTH_KEY,
+    "sbfa_user",
     JSON.stringify({
       email: email,
+      isPro: false,   // FREE by default
       loggedInAt: Date.now()
     })
   );
@@ -32,4 +33,8 @@ function requireAuth() {
   if (!getCurrentUser()) {
     window.location.href = "login.html";
   }
+}
+function isProUser() {
+  const user = getCurrentUser();
+  return user && user.isPro === true;
 }
