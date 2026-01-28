@@ -210,114 +210,119 @@ renameReportBtn.addEventListener("click", () => {
   });
 
   /* ======================
-     FILE UPLOAD
-     ====================== */
-  document.getElementById("fileInput").addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
+   FILE UPLOAD
+   ====================== */
+const fileInput = document.getElementById("fileInput");
 
-    const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  if (!file) return;
 
-    if (isExcel && !isProUser()) {
-      alert("Excel uploads are a Pro feature.");
-      e.target.value = "";
-      return;
-    }
+  const isExcel = file.name.toLowerCase().endsWith(".xlsx");
 
-    isExcel ? readExcel(file) : readCSV(file);
-  });
+  if (isExcel && !isProUser()) {
+    alert("Excel uploads are a Pro feature.");
+    fileInput.value = "";
+    return;
+  }
 
+  if (isExcel) {
+    readExcel(file);
+  } else {
+    readCSV(file);
+  }
 });
-
-  function readCSV(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rows = e.target.result
-        .trim()
-        .split("\n")
-        .map(r => r.replace(/\r/g, "").split(","));
-      processRows(rows);
-    };
-    reader.readAsText(file);
-  }
-
-  function readExcel(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      processRows(rows);
-    };
-    reader.readAsArrayBuffer(file);
-  }
 
   /* ======================
      PROCESS + SAVE
      ====================== */
   function processRows(rows) {
-    const debitBody = document.querySelector("#debitTable tbody");
-    const creditBody = document.querySelector("#creditTable tbody");
-    const expCatBody = document.querySelector("#expenseCategoryTable tbody");
-    const incCatBody = document.querySelector("#incomeCategoryTable tbody");
+  const debitBody = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
+  const expCatBody = document.querySelector("#expenseCategoryTable tbody");
+  const incCatBody = document.querySelector("#incomeCategoryTable tbody");
 
-    debitBody.innerHTML = creditBody.innerHTML = "";
-    expCatBody.innerHTML = incCatBody.innerHTML = "";
+  debitBody.innerHTML = "";
+  creditBody.innerHTML = "";
+  expCatBody.innerHTML = "";
+  incCatBody.innerHTML = "";
 
-    let expenses = 0, income = 0;
-    const expCats = {}, incCats = {};
+  let expenses = 0;
+  let income = 0;
 
-    rows.slice(1).forEach(row => {
-      if (!row || row.length < 3) return;
+  const expCats = {};
+  const incCats = {};
 
-      const date = formatDate(row[0]);
-      const desc = row[1];
-      let type = "expense";
-      let amount = 0;
+  // Skip header row
+  rows.slice(1).forEach(row => {
+    if (!row || row.length < 3) return;
 
-      if (row.length === 3) {
-        amount = parseFloat(row[2]);
-      } else {
-        type = String(row[2]).toLowerCase();
-        amount = parseFloat(row[3]);
-      }
+    const date = formatDate(row[0]);
+    const desc = row[1];
+    let amount = 0;
+    let type = "expense";
 
-      if (!desc || isNaN(amount)) return;
+    // 3-column CSV: Date, Desc, Amount (EXPENSE)
+    if (row.length === 3) {
+      amount = parseFloat(row[2]);
+    }
 
-      const cat = categorize(desc);
-      const val = Math.abs(amount);
+    // 4-column CSV / Excel: Date, Desc, Type, Amount
+    if (row.length >= 4) {
+      type = String(row[2]).toLowerCase();
+      amount = parseFloat(row[3]);
+    }
 
-      if (type === "expense" || amount < 0) {
-        expenses += val;
-        expCats[cat] = (expCats[cat] || 0) + val;
-        debitBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
-          <td class="negative">$${val.toFixed(2)}</td></tr>`;
-      }
+    if (!desc || isNaN(amount)) return;
 
-      if (type === "income" && amount > 0) {
-        income += val;
-        incCats[cat] = (incCats[cat] || 0) + val;
-        creditBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
-          <td class="positive">$${val.toFixed(2)}</td></tr>`;
-      }
-    });
+    const cat = categorize(desc);
+    const val = Math.abs(amount);
 
-    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-    document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+    if (type === "expense" || amount < 0) {
+      expenses += val;
+      expCats[cat] = (expCats[cat] || 0) + val;
 
-    saveReport({ rows, totals: { income, expenses, net: income - expenses } });
+      debitBody.innerHTML += `
+        <tr>
+          <td>${date}</td>
+          <td>${desc}</td>
+          <td>${cat}</td>
+          <td class="negative">$${val.toFixed(2)}</td>
+        </tr>`;
+    }
 
-    Object.entries(expCats).forEach(([c,v]) =>
-      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-    );
-    Object.entries(incCats).forEach(([c,v]) =>
-      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-    );
-  }
+    if (type === "income" && amount > 0) {
+      income += val;
+      incCats[cat] = (incCats[cat] || 0) + val;
+
+      creditBody.innerHTML += `
+        <tr>
+          <td>${date}</td>
+          <td>${desc}</td>
+          <td>${cat}</td>
+          <td class="positive">$${val.toFixed(2)}</td>
+        </tr>`;
+    }
+  });
+
+  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+  document.getElementById("totalCredits").textContent = income.toFixed(2);
+  document.getElementById("netBalance").textContent =
+    (income - expenses).toFixed(2);
+
+  saveReport({
+    rows,
+    totals: { income, expenses, net: income - expenses }
+  });
+
+  Object.entries(expCats).forEach(([c,v]) =>
+    expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
+  );
+
+  Object.entries(incCats).forEach(([c,v]) =>
+    incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
+  );
+}
 
   function formatDate(d) {
     if (typeof d === "number") {
