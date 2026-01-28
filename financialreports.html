@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Financial Reports</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- Shared Styles -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css" />
 
-  <!-- Page-specific fallback styles (can be moved to CSS later) -->
+  <!-- Page-specific fallback styles -->
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -72,31 +72,29 @@
 
 <body>
 
-  <!-- NAV (SaaS-ready placeholder) -->
+  <!-- NAV -->
   <nav>
     <strong>Small Business Financials</strong>
-    <!-- Reserved for auth later -->
     <button id="logoutBtn" style="display:none;">Log out</button>
   </nav>
 
-  <!-- PAGE HEADER -->
+  <!-- HEADER -->
   <header>
     <h1>Financial Reports</h1>
     <p>
-      Upload your transactions to instantly generate income, expense,
-      and profit reports.
+      Upload a CSV or Excel file to generate income, expense, and profit reports.
     </p>
   </header>
 
   <!-- FILE UPLOAD -->
   <input
-  type="file"
-  id="fileInput"
-  accept=".csv,.xlsx"
-/>
+    type="file"
+    id="fileInput"
+    accept=".csv,.xlsx"
+  />
 
-  <!-- DEBITS -->
-  <h2>Debit Transactions (Expenses)</h2>
+  <!-- EXPENSES -->
+  <h2>Expense Transactions</h2>
   <table id="debitTable">
     <thead>
       <tr>
@@ -109,8 +107,8 @@
     <tbody></tbody>
   </table>
 
-  <!-- CREDITS -->
-  <h2>Credit Transactions (Income)</h2>
+  <!-- INCOME -->
+  <h2>Income Transactions</h2>
   <table id="creditTable">
     <thead>
       <tr>
@@ -131,76 +129,104 @@
     <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
   </div>
 
-  <!-- SCRIPT -->
+  <!-- EXCEL PARSER (MUST COME FIRST) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- REPORT LOGIC -->
   <script>
-    document.getElementById('fileInput').addEventListener('change', handleFile);
+    document.getElementById("fileInput").addEventListener("change", handleFile);
 
     function handleFile(event) {
       const file = event.target.files[0];
       if (!file) return;
 
+      const name = file.name.toLowerCase();
+
+      if (name.endsWith(".csv")) {
+        readCSV(file);
+      } else if (name.endsWith(".xlsx")) {
+        readExcel(file);
+      } else {
+        alert("Please upload a CSV or Excel file.");
+      }
+    }
+
+    function readCSV(file) {
       const reader = new FileReader();
-      reader.onload = e => processTransactions(e.target.result);
+      reader.onload = e => {
+        const rows = e.target.result
+          .split("\n")
+          .slice(1)
+          .map(r => r.split(","));
+        processRows(rows);
+      };
       reader.readAsText(file);
     }
 
-    function processTransactions(csv) {
-      const rows = csv.split('\n').slice(1);
-      const debitBody = document.querySelector('#debitTable tbody');
-      const creditBody = document.querySelector('#creditTable tbody');
+    function readExcel(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const workbook = XLSX.read(e.target.result, { type: "binary" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+        processRows(rows);
+      };
+      reader.readAsBinaryString(file);
+    }
 
-      debitBody.innerHTML = '';
-      creditBody.innerHTML = '';
+    function processRows(rows) {
+      const debitBody = document.querySelector("#debitTable tbody");
+      const creditBody = document.querySelector("#creditTable tbody");
 
-      let income = 0;
+      debitBody.innerHTML = "";
+      creditBody.innerHTML = "";
+
       let expenses = 0;
+      let income = 0;
 
       rows.forEach(row => {
-        if (!row.trim()) return;
-
-        const [date, desc, amountStr] = row.split(',');
-        const amount = parseFloat(amountStr);
-        if (isNaN(amount)) return;
+        const [date, desc, type, amountRaw] = row;
+        const amount = parseFloat(amountRaw);
+        if (!desc || !type || isNaN(amount)) return;
 
         const category = categorize(desc);
-
-        const tr = document.createElement('tr');
+        const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${date}</td>
+          <td>${date || ""}</td>
           <td>${desc}</td>
           <td>${category}</td>
-          <td class="${amount < 0 ? 'negative' : 'positive'}">
-            $${Math.abs(amount).toFixed(2)}
-          </td>
+          <td>$${amount.toFixed(2)}</td>
         `;
 
-        if (amount < 0) {
+        if (type.toLowerCase() === "expense") {
+          tr.lastElementChild.className = "negative";
           debitBody.appendChild(tr);
-          expenses += Math.abs(amount);
-        } else {
+          expenses += amount;
+        } else if (type.toLowerCase() === "income") {
+          tr.lastElementChild.className = "positive";
           creditBody.appendChild(tr);
           income += amount;
         }
       });
 
-      document.getElementById('totalDebits').textContent = expenses.toFixed(2);
-      document.getElementById('totalCredits').textContent = income.toFixed(2);
-      document.getElementById('netBalance').textContent =
+      document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+      document.getElementById("totalCredits").textContent = income.toFixed(2);
+      document.getElementById("netBalance").textContent =
         (income - expenses).toFixed(2);
     }
 
     function categorize(description) {
-      description = description.toLowerCase();
-      if (description.includes('rent')) return 'Rent';
-      if (description.includes('payroll') || description.includes('salary')) return 'Payroll';
-      if (description.includes('electric') || description.includes('water') || description.includes('internet')) return 'Utilities';
-      if (description.includes('google') || description.includes('facebook') || description.includes('ads')) return 'Marketing';
-      if (description.includes('uber') || description.includes('flight') || description.includes('hotel')) return 'Travel';
-      if (description.includes('office')) return 'Office Supplies';
-      return 'Miscellaneous';
+      const d = description.toLowerCase();
+      if (d.includes("rent")) return "Rent";
+      if (d.includes("payroll") || d.includes("salary")) return "Payroll";
+      if (d.includes("electric") || d.includes("water") || d.includes("internet")) return "Utilities";
+      if (d.includes("google") || d.includes("facebook") || d.includes("ads")) return "Marketing";
+      if (d.includes("uber") || d.includes("flight") || d.includes("hotel")) return "Travel";
+      if (d.includes("office")) return "Office Supplies";
+      return "Miscellaneous";
     }
   </script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="js/dashboard.js"></script>
+
 </body>
 </html>
+
