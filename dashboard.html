@@ -39,6 +39,14 @@
     }
   </style>
 </head>
+<nav>
+  <strong>Small Business Financials</strong>
+  <div>
+    <a href="dashboard.html">Dashboard</a> |
+    <a href="financialreports.html">Financial Reports</a> |
+    <a href="#" onclick="logoutUser()">Logout</a>
+  </div>
+</nav>
 
 <body>
 
@@ -47,6 +55,10 @@
     <span>Small Business Analyzer</span>
     <button id="upgradeBtn" style="display:none;">Upgrade</button>
   </nav>
+<script src="js/auth.js"></script>
+<script>
+  requireAuth();
+</script>
 
   <!-- DASHBOARD CONTENT -->
   <main>
@@ -54,7 +66,11 @@
     <!-- UPLOAD -->
     <section class="section">
       <h1>Dashboard</h1>
-      <p>Upload your transactions to generate financial reports.</p>
+<p>Welcome! Choose what you want to do.</p>
+
+<a href="financialreports.html">
+  <button>Go to Financial Reports</button>
+</a>
 
       <input type="file" id="fileInput" accept=".csv" />
     </section>
