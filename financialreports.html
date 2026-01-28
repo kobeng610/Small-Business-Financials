@@ -129,6 +129,27 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
+  // ======================
+// LOAD SAVED REPORTS ON PAGE LOAD
+// ======================
+const savedReportsSelect = document.getElementById("savedReports");
+savedReportsSelect.innerHTML = '<option value="">— Select a saved report —</option>';
+
+const savedReports = getSavedReports();
+
+savedReports.forEach(report => {
+  const option = document.createElement("option");
+  option.value = report.id;
+  option.textContent =
+    report.name || `Report — ${new Date(report.createdAt).toLocaleString()}`;
+  savedReportsSelect.appendChild(option);
+});
+ // ======================
+// AUTO-LOAD MOST RECENT REPORT
+// ======================
+if (savedReports.length > 0) {
+  processRows(savedReports[0].rows);
+} 
   /* ======================
      FILE UPLOAD
      ====================== */
