@@ -3,26 +3,48 @@
 <head>
   <meta charset="UTF-8" />
   <title>Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 
 <body>
 
-<h1>Log in</h1>
+  <main style="max-width:400px;margin:80px auto;text-align:center;">
 
-<form id="loginForm">
-  <input type="email" id="email" placeholder="Email" required />
-  <button type="submit">Log In</button>
-</form>
+    <h1>Log in</h1>
 
-<script src="js/auth.js"></script>
-<script>
-  document.getElementById("loginForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    const email = document.getElementById("email").value;
-    loginUser(email);
-  });
-</script>
+    <form id="loginForm">
+      <input
+        type="email"
+        id="email"
+        placeholder="Email"
+        required
+        style="width:100%;padding:10px;margin-bottom:15px;"
+      />
+      <button type="submit" style="width:100%;padding:10px;">
+        Log In
+      </button>
+    </form>
+
+  </main>
+
+  <!-- AUTH -->
+  <script src="js/auth.js"></script>
+
+  <!-- REDIRECT IF ALREADY LOGGED IN -->
+  <script>
+    if (getCurrentUser()) {
+      window.location.href = "dashboard.html";
+    }
+
+    document
+      .getElementById("loginForm")
+      .addEventListener("submit", function (e) {
+        e.preventDefault();
+        const email = document.getElementById("email").value;
+        loginUser(email);
+      });
+  </script>
 
 </body>
 </html>
