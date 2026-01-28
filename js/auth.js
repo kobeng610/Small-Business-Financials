@@ -53,3 +53,19 @@ function logoutUser() {
   localStorage.removeItem(USER_KEY);
   window.location.href = "login.html";
 }
+/* -----------------------------
+   UPGRADE TO PRO
+--------------------------------*/
+function upgradeToPro() {
+  const user = getCurrentUser();
+  if (!user) {
+    alert("Session expired. Please log in again.");
+    window.location.href = "login.html";
+    return;
+  }
+
+  user.isPro = true;
+  localStorage.setItem("sbfa_user", JSON.stringify(user));
+
+  alert("🎉 You are now a Pro user!");
+}
