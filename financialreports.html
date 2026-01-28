@@ -47,13 +47,10 @@
 </head>
 
 <body>
-<!-- AUTH FIRST -->
+
+<!-- AUTH & STORAGE (ORDER MATTERS) -->
 <script src="js/auth.js"></script>
-
-<!-- REPORT STORAGE (THIS WAS MISSING / TOO LATE) -->
 <script src="js/reports.js"></script>
-
-<!-- THEN your page logic -->
 <script>requireAuth();</script>
 
 <nav>
@@ -122,13 +119,21 @@
   </table>
 </div>
 
+<!-- XLSX -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
+  // Pro-only UI
   if (isProUser()) {
     document.getElementById("categoryTotalsSection").style.display = "block";
+  }
+
+  // Load most recent saved report
+  const saved = getSavedReports();
+  if (saved.length > 0) {
+    processRows(saved[0].rows);
   }
 
   document.getElementById("fileInput").addEventListener("change", handleFile);
@@ -137,10 +142,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const file = e.target.files[0];
     if (!file) return;
 
-  const saved = getSavedReports();
-if (saved.length > 0) {
-  processRows(saved[0].rows);
-}
     const isExcel = file.name.toLowerCase().endsWith(".xlsx");
 
     if (isExcel && !isProUser()) {
@@ -182,8 +183,10 @@ if (saved.length > 0) {
     const expCatBody = document.querySelector("#expenseCategoryTable tbody");
     const incCatBody = document.querySelector("#incomeCategoryTable tbody");
 
-    debitBody.innerHTML = creditBody.innerHTML = "";
-    expCatBody.innerHTML = incCatBody.innerHTML = "";
+    debitBody.innerHTML = "";
+    creditBody.innerHTML = "";
+    expCatBody.innerHTML = "";
+    incCatBody.innerHTML = "";
 
     let expenses = 0;
     let income = 0;
@@ -224,14 +227,11 @@ if (saved.length > 0) {
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = income.toFixed(2);
     document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+
     saveReport({
-  rows,
-  totals: {
-    income,
-    expenses,
-    net: income - expenses
-  }
-});
+      rows,
+      totals: { income, expenses, net: income - expenses }
+    });
 
     Object.entries(expenseCats).forEach(([c,v]) =>
       expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
@@ -265,5 +265,6 @@ if (saved.length > 0) {
 
 </body>
 </html>
+
 
 
