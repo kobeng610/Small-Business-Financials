@@ -73,7 +73,9 @@
   <select id="savedReports">
     <option value="">— Select a saved report —</option>
   </select>
+
   <button id="loadReportBtn">Load</button>
+  <button id="deleteReportBtn" style="margin-left:10px;">Delete</button>
 </section>
 
 <input type="file" id="fileInput" accept=".csv,.xlsx" />
@@ -135,19 +137,28 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ======================
-     POPULATE SAVED REPORTS
+     SAVED REPORTS (PRO ONLY)
      ====================== */
   const savedReportsSelect = document.getElementById("savedReports");
   const loadReportBtn = document.getElementById("loadReportBtn");
+  const deleteReportBtn = document.getElementById("deleteReportBtn");
 
-  getSavedReports().forEach(report => {
-    const option = document.createElement("option");
-    option.value = report.id;
-    option.textContent = new Date(report.createdAt).toLocaleString();
-    savedReportsSelect.appendChild(option);
-  });
+  if (isProUser()) {
+    getSavedReports().forEach(report => {
+      const option = document.createElement("option");
+      option.value = report.id;
+      option.textContent =
+        report.name || new Date(report.createdAt).toLocaleString();
+      savedReportsSelect.appendChild(option);
+    });
+  }
 
   loadReportBtn.addEventListener("click", () => {
+    if (!isProUser()) {
+      alert("Saved reports are a Pro feature.");
+      return;
+    }
+
     const id = savedReportsSelect.value;
     if (!id) {
       alert("Please select a report.");
@@ -158,6 +169,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!report) return;
 
     processRows(report.rows);
+  });
+
+  deleteReportBtn.addEventListener("click", () => {
+    if (!isProUser()) {
+      alert("Saved reports are a Pro feature.");
+      return;
+    }
+
+    const id = savedReportsSelect.value;
+    if (!id) {
+      alert("Select a report to delete.");
+      return;
+    }
+
+    if (!confirm("Delete this report permanently?")) return;
+
+    deleteReport(id);
+    location.reload();
   });
 
   /* ======================
@@ -177,6 +206,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     isExcel ? readExcel(file) : readCSV(file);
   });
+
+});
 
   function readCSV(file) {
     const reader = new FileReader();
