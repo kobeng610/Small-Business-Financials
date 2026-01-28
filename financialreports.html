@@ -190,43 +190,55 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsArrayBuffer(file);
   }
 
-  /* ======================
-     PROCESS ROWS
-     ====================== */
-  function processRows(rows) {
-    console.log("⚙️ processRows called", rows);
+ /* ======================
+   PROCESS ROWS + SAVE
+   ====================== */
+function processRows(rows) {
+  console.log("⚙️ processRows called", rows);
 
-    const debitBody = document.querySelector("#debitTable tbody");
-    debitBody.innerHTML = "";
+  const debitBody = document.querySelector("#debitTable tbody");
+  debitBody.innerHTML = "";
 
-    let expenses = 0;
+  let expenses = 0;
 
-    rows.slice(1).forEach(row => {
-      if (row.length < 3) return;
+  rows.slice(1).forEach(row => {
+    if (!row || row.length < 3) return;
 
-      const date = row[0];
-      const desc = row[1];
-      const amt = parseFloat(row[row.length - 1]);
+    const date = row[0];
+    const desc = row[1];
+    const amt = parseFloat(row[row.length - 1]);
 
-      if (!desc || isNaN(amt)) return;
+    if (!desc || isNaN(amt)) return;
 
-      expenses += Math.abs(amt);
+    const val = Math.abs(amt);
+    expenses += val;
 
-      debitBody.innerHTML += `
-        <tr>
-          <td>${date}</td>
-          <td>${desc}</td>
-          <td>Misc</td>
-          <td class="negative">$${Math.abs(amt).toFixed(2)}</td>
-        </tr>`;
-    });
+    debitBody.innerHTML += `
+      <tr>
+        <td>${date}</td>
+        <td>${desc}</td>
+        <td>Misc</td>
+        <td class="negative">$${val.toFixed(2)}</td>
+      </tr>`;
+  });
 
-    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-    document.getElementById("totalCredits").textContent = "0.00";
-    document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
-  }
+  // Totals
+  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+  document.getElementById("totalCredits").textContent = "0.00";
+  document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
 
-});
+  // ✅ SAVE REPORT (THIS WAS MISSING)
+  saveReport({
+    rows,
+    totals: {
+      income: 0,
+      expenses: expenses,
+      net: -expenses
+    }
+  });
+
+  console.log("✅ Report saved successfully");
+}
 </script>
 
 </body>
