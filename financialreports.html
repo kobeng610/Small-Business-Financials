@@ -116,7 +116,7 @@
   <!-- XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
- <script>
+<script>
 document.addEventListener("DOMContentLoaded", () => {
 
   if (isProUser()) {
@@ -137,8 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (isExcel) readExcel(file);
-    else readCSV(file);
+    isExcel ? readExcel(file) : readCSV(file);
   }
 
   function readCSV(file) {
@@ -152,7 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsText(file);
   }
 
-  // ✅ HEADER-AWARE EXCEL READER (FINAL FIX)
   function readExcel(file) {
     const reader = new FileReader();
     reader.onload = e => {
@@ -160,9 +158,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      console.log("RAW EXCEL ROWS:", rows);
-
       processRows(rows);
     };
     reader.readAsArrayBuffer(file);
@@ -174,69 +169,83 @@ document.addEventListener("DOMContentLoaded", () => {
     const expCatBody = document.querySelector("#expenseCategoryTable tbody");
     const incCatBody = document.querySelector("#incomeCategoryTable tbody");
 
-    debitBody.innerHTML = creditBody.innerHTML = "";
-    expCatBody.innerHTML = incCatBody.innerHTML = "";
+    debitBody.innerHTML = "";
+    creditBody.innerHTML = "";
+    expCatBody.innerHTML = "";
+    incCatBody.innerHTML = "";
 
-    let expenses = 0, income = 0;
-    const expCats = {}, incCats = {};
+    let expenses = 0;
+    let income = 0;
 
-    if (!rows.length) return;
+    const expenseCategories = {};
+    const incomeCategories = {};
 
-    // ✅ Detect header row
-    const headers = rows[0].map(h => String(h).toLowerCase());
-    const dateIdx = headers.findIndex(h => h.includes("date"));
-    const descIdx = headers.findIndex(h => h.includes("desc"));
-    const amountIdx = headers.findIndex(h => h.includes("amount"));
-    const debitIdx = headers.findIndex(h => h.includes("debit"));
-    const creditIdx = headers.findIndex(h => h.includes("credit"));
-
+    // skip header
     rows.slice(1).forEach(row => {
-      const desc = row[descIdx];
-      if (!desc) return;
+      if (!row || row.length < 4) return;
 
-      const date = row[dateIdx] || "";
-      let debit = 0, credit = 0;
+      const excelDate = row[0];
+      const description = row[1];
+      const type = String(row[2]).toLowerCase();
+      const amount = parseFloat(row[3]);
 
-      if (debitIdx >= 0 || creditIdx >= 0) {
-        debit = parseFloat(row[debitIdx]) || 0;
-        credit = parseFloat(row[creditIdx]) || 0;
-      } else if (amountIdx >= 0) {
-        const amt = parseFloat(row[amountIdx]);
-        if (isNaN(amt)) return;
-        if (amt < 0) debit = Math.abs(amt);
-        else credit = amt;
-      }
+      if (!description || isNaN(amount)) return;
 
-      const category = categorize(desc);
+      const date = typeof excelDate === "number"
+        ? new Date((excelDate - 25569) * 86400 * 1000).toISOString().split("T")[0]
+        : excelDate;
 
-      if (debit > 0) {
-        expenses += debit;
-        expCats[category] = (expCats[category] || 0) + debit;
+      const category = categorize(description);
+
+      if (type === "expense" || amount < 0) {
+        const val = Math.abs(amount);
+        expenses += val;
+        expenseCategories[category] = (expenseCategories[category] || 0) + val;
+
         debitBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${category}</td>
-          <td class="negative">$${debit.toFixed(2)}</td></tr>`;
+          <tr>
+            <td>${date}</td>
+            <td>${description}</td>
+            <td>${category}</td>
+            <td class="negative">$${val.toFixed(2)}</td>
+          </tr>`;
       }
 
-      if (credit > 0) {
-        income += credit;
-        incCats[category] = (incCats[category] || 0) + credit;
+      if (type === "income" || amount > 0) {
+        const val = Math.abs(amount);
+        income += val;
+        incomeCategories[category] = (incomeCategories[category] || 0) + val;
+
         creditBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${category}</td>
-          <td class="positive">$${credit.toFixed(2)}</td></tr>`;
+          <tr>
+            <td>${date}</td>
+            <td>${description}</td>
+            <td>${category}</td>
+            <td class="positive">$${val.toFixed(2)}</td>
+          </tr>`;
       }
     });
 
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+    document.getElementById("netBalance").textContent =
+      (income - expenses).toFixed(2);
 
-    Object.entries(expCats).forEach(([c,v]) =>
-      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-    );
+    Object.entries(expenseCategories).forEach(([cat, total]) => {
+      expCatBody.innerHTML += `
+        <tr>
+          <td>${cat}</td>
+          <td class="negative">$${total.toFixed(2)}</td>
+        </tr>`;
+    });
 
-    Object.entries(incCats).forEach(([c,v]) =>
-      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-    );
+    Object.entries(incomeCategories).forEach(([cat, total]) => {
+      incCatBody.innerHTML += `
+        <tr>
+          <td>${cat}</td>
+          <td class="positive">$${total.toFixed(2)}</td>
+        </tr>`;
+    });
   }
 
   function categorize(d) {
