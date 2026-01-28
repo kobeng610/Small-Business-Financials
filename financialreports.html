@@ -141,15 +141,22 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function readCSV(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rows = e.target.result
-        .split("\n")
-        .map(r => r.split(","));
-      processRows(rows);
-    };
-    reader.readAsText(file);
-  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = e.target.result
+      .trim()
+      .split("\n")
+      .map(line =>
+        line
+          .replace(/\r/g, "")
+          .split(",")
+          .map(cell => cell.trim())
+      );
+
+    processRows(rows);
+  };
+  reader.readAsText(file);
+}
 
   function readExcel(file) {
     const reader = new FileReader();
