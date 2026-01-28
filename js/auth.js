@@ -1,34 +1,12 @@
-const USER_KEY = "sbfa_user";
+// ===============================
+// AUTH + USER STATE (SINGLE SOURCE)
+// ===============================
 
-/* -----------------------------
-   LOGIN
---------------------------------*/
-function loginUser(email) {
-  const user = {
-    email,
-    isPro: false,
-    loggedInAt: Date.now()
-  };
+const STORAGE_KEY = "sbfa_user";
 
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
-  window.location.href = "dashboard.html";
-}
-
-/* -----------------------------
-   AUTH GUARD
---------------------------------*/
-function requireAuth() {
-  const user = getCurrentUser();
-  if (!user) {
-    window.location.href = "login.html";
-  }
-}
-
-/* -----------------------------
-   CURRENT USER
---------------------------------*/
+// Get current user
 function getCurrentUser() {
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = localStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
 
   try {
@@ -38,34 +16,51 @@ function getCurrentUser() {
   }
 }
 
-/* -----------------------------
-   PRO CHECK
---------------------------------*/
-function isProUser() {
-  const user = getCurrentUser();
-  return user && user.isPro === true;
+// Login user
+function loginUser(email) {
+  if (!email) return;
+
+  const user = {
+    email,
+    isPro: false,
+    loggedInAt: Date.now()
+  };
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  window.location.href = "dashboard.html";
 }
 
-/* -----------------------------
-   LOGOUT
---------------------------------*/
+// Logout user
 function logoutUser() {
-  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(STORAGE_KEY);
   window.location.href = "login.html";
 }
-/* -----------------------------
-   UPGRADE TO PRO
---------------------------------*/
+
+// Require authentication
+function requireAuth() {
+  const user = getCurrentUser();
+  if (!user) {
+    window.location.href = "login.html";
+  }
+}
+
+// Pro check (🔥 THIS IS THE ONLY PLACE 🔥)
+function isProUser() {
+  const user = getCurrentUser();
+  return !!(user && user.isPro === true);
+}
+
+// Upgrade user to Pro
 function upgradeToPro() {
   const user = getCurrentUser();
   if (!user) {
-    alert("Session expired. Please log in again.");
-    window.location.href = "login.html";
+    alert("Please log in again.");
     return;
   }
 
   user.isPro = true;
-  localStorage.setItem("sbfa_user", JSON.stringify(user));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
 
   alert("🎉 You are now a Pro user!");
+  window.location.reload();
 }
