@@ -129,217 +129,101 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
+  console.log("✅ FinancialReports JS loaded");
+
+  const fileInput = document.getElementById("fileInput");
+
+  fileInput.addEventListener("change", handleFile);
+
+  function handleFile() {
+    console.log("📂 File input changed");
+
+    const file = fileInput.files[0];
+    console.log("📄 File:", file);
+
+    if (!file) return;
+
+    const isExcel = file.name.toLowerCase().endsWith(".xlsx");
+
+    if (isExcel && !isProUser()) {
+      alert("Excel uploads are a Pro feature.");
+      fileInput.value = "";
+      return;
+    }
+
+    if (isExcel) {
+      readExcel(file);
+    } else {
+      readCSV(file);
+    }
+  }
+
   /* ======================
-     PRO VISIBILITY
+     CSV READER
      ====================== */
-  if (isProUser()) {
-    document.getElementById("categoryTotalsSection").style.display = "block";
+  function readCSV(file) {
+    console.log("📄 Reading CSV...");
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result
+        .trim()
+        .split("\n")
+        .map(r => r.replace(/\r/g, "").split(","));
+      processRows(rows);
+    };
+    reader.readAsText(file);
   }
 
   /* ======================
-     SAVED REPORTS (PRO ONLY)
+     EXCEL READER
      ====================== */
-  const savedReportsSelect = document.getElementById("savedReports");
-  const loadReportBtn = document.getElementById("loadReportBtn");
-  const deleteReportBtn = document.getElementById("deleteReportBtn");
-  const renameReportBtn = document.getElementById("renameReportBtn");
-
-  if (isProUser()) {
-    getSavedReports().forEach(report => {
-      const option = document.createElement("option");
-      option.value = report.id;
-      option.textContent =
-        option.textContent =
-  report.name || new Date(report.createdAt).toLocaleString();
-      savedReportsSelect.appendChild(option);
-    });
+  function readExcel(file) {
+    console.log("📊 Reading Excel...");
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      processRows(rows);
+    };
+    reader.readAsArrayBuffer(file);
   }
-
-  loadReportBtn.addEventListener("click", () => {
-    if (!isProUser()) {
-      alert("Saved reports are a Pro feature.");
-      return;
-    }
-
-    const id = savedReportsSelect.value;
-    if (!id) {
-      alert("Please select a report.");
-      return;
-    }
-
-    const report = getSavedReports().find(r => String(r.id) === String(id));
-    if (!report) return;
-
-    processRows(report.rows);
-  });
-
-  deleteReportBtn.addEventListener("click", () => {
-    if (!isProUser()) {
-      alert("Saved reports are a Pro feature.");
-      return;
-    }
-renameReportBtn.addEventListener("click", () => {
-  if (!isProUser()) {
-    alert("Renaming reports is a Pro feature.");
-    return;
-  }
-
-  const id = savedReportsSelect.value;
-  if (!id) {
-    alert("Select a report to rename.");
-    return;
-  }
-
-  const newName = prompt("Enter a new name for this report:");
-  if (!newName || !newName.trim()) return;
-
-  renameReport(id, newName);
-  location.reload();
-});
-
-    const id = savedReportsSelect.value;
-    if (!id) {
-      alert("Select a report to delete.");
-      return;
-    }
-
-    if (!confirm("Delete this report permanently?")) return;
-
-    deleteReport(id);
-    location.reload();
-  });
 
   /* ======================
-   FILE UPLOAD
-   ====================== */
-const fileInput = document.getElementById("fileInput");
-
-fileInput.addEventListener("change", () => {
-  const file = fileInput.files[0];
-  if (!file) return;
-
-  const isExcel = file.name.toLowerCase().endsWith(".xlsx");
-
-  if (isExcel && !isProUser()) {
-    alert("Excel uploads are a Pro feature.");
-    fileInput.value = "";
-    return;
-  }
-
-  if (isExcel) {
-    readExcel(file);
-  } else {
-    readCSV(file);
-  }
-});
-
-  /* ======================
-     PROCESS + SAVE
+     PROCESS ROWS
      ====================== */
   function processRows(rows) {
-  const debitBody = document.querySelector("#debitTable tbody");
-  const creditBody = document.querySelector("#creditTable tbody");
-  const expCatBody = document.querySelector("#expenseCategoryTable tbody");
-  const incCatBody = document.querySelector("#incomeCategoryTable tbody");
+    console.log("⚙️ processRows called", rows);
 
-  debitBody.innerHTML = "";
-  creditBody.innerHTML = "";
-  expCatBody.innerHTML = "";
-  incCatBody.innerHTML = "";
+    const debitBody = document.querySelector("#debitTable tbody");
+    debitBody.innerHTML = "";
 
-  let expenses = 0;
-  let income = 0;
+    let expenses = 0;
 
-  const expCats = {};
-  const incCats = {};
+    rows.slice(1).forEach(row => {
+      if (row.length < 3) return;
 
-  // Skip header row
-  rows.slice(1).forEach(row => {
-    if (!row || row.length < 3) return;
+      const date = row[0];
+      const desc = row[1];
+      const amt = parseFloat(row[row.length - 1]);
 
-    const date = formatDate(row[0]);
-    const desc = row[1];
-    let amount = 0;
-    let type = "expense";
+      if (!desc || isNaN(amt)) return;
 
-    // 3-column CSV: Date, Desc, Amount (EXPENSE)
-    if (row.length === 3) {
-      amount = parseFloat(row[2]);
-    }
-
-    // 4-column CSV / Excel: Date, Desc, Type, Amount
-    if (row.length >= 4) {
-      type = String(row[2]).toLowerCase();
-      amount = parseFloat(row[3]);
-    }
-
-    if (!desc || isNaN(amount)) return;
-
-    const cat = categorize(desc);
-    const val = Math.abs(amount);
-
-    if (type === "expense" || amount < 0) {
-      expenses += val;
-      expCats[cat] = (expCats[cat] || 0) + val;
+      expenses += Math.abs(amt);
 
       debitBody.innerHTML += `
         <tr>
           <td>${date}</td>
           <td>${desc}</td>
-          <td>${cat}</td>
-          <td class="negative">$${val.toFixed(2)}</td>
+          <td>Misc</td>
+          <td class="negative">$${Math.abs(amt).toFixed(2)}</td>
         </tr>`;
-    }
+    });
 
-    if (type === "income" && amount > 0) {
-      income += val;
-      incCats[cat] = (incCats[cat] || 0) + val;
-
-      creditBody.innerHTML += `
-        <tr>
-          <td>${date}</td>
-          <td>${desc}</td>
-          <td>${cat}</td>
-          <td class="positive">$${val.toFixed(2)}</td>
-        </tr>`;
-    }
-  });
-
-  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-  document.getElementById("totalCredits").textContent = income.toFixed(2);
-  document.getElementById("netBalance").textContent =
-    (income - expenses).toFixed(2);
-
-  saveReport({
-    rows,
-    totals: { income, expenses, net: income - expenses }
-  });
-
-  Object.entries(expCats).forEach(([c,v]) =>
-    expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-  );
-
-  Object.entries(incCats).forEach(([c,v]) =>
-    incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-  );
-}
-
-  function formatDate(d) {
-    if (typeof d === "number") {
-      return new Date((d - 25569) * 86400 * 1000).toISOString().split("T")[0];
-    }
-    return d || "";
-  }
-
-  function categorize(d) {
-    d = String(d).toLowerCase();
-    if (d.includes("rent")) return "Rent";
-    if (d.includes("payroll") || d.includes("salary")) return "Payroll";
-    if (d.includes("electric") || d.includes("water") || d.includes("internet")) return "Utilities";
-    if (d.includes("google") || d.includes("facebook") || d.includes("ads")) return "Marketing";
-    if (d.includes("uber") || d.includes("flight")) return "Travel";
-    if (d.includes("office")) return "Office Supplies";
-    return "Miscellaneous";
+    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+    document.getElementById("totalCredits").textContent = "0.00";
+    document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
   }
 
 });
