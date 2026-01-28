@@ -2,28 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Login</title>
- <link rel="stylesheet" href="/css/styles.css?v=1" />
+  <title>Login | Small Business Financials</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Shared Styles (cache-busted) -->
+  <link rel="stylesheet" href="/css/styles.css?v=1" />
+
+  <!-- Small page-specific layout fix -->
+  <style>
+    body {
+      background: #f5f7fa;
+    }
+
+    .login-container {
+      max-width: 400px;
+      margin: 100px auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    input[type="email"] {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 
 <body>
 
-<h1>Log in</h1>
+  <main class="login-container">
+    <h1>Log in</h1>
 
-<form id="loginForm">
-  <input type="email" id="email" placeholder="Email" required />
-  <button type="submit">Log In</button>
-</form>
+    <form id="loginForm">
+      <input
+        type="email"
+        id="email"
+        placeholder="Email"
+        required
+      />
+      <button type="submit">Log In</button>
+    </form>
+  </main>
 
-<script src="js/auth.js"></script>
-<script>
-  document.getElementById("loginForm").addEventListener("submit", function (e) {
-    e.preventDefault();
-    const email = document.getElementById("email").value;
-    loginUser(email); // ✅ redirects to dashboard
-  });
-</script>
+  <!-- AUTH -->
+  <script src="js/auth.js"></script>
+  <script>
+    document
+      .getElementById("loginForm")
+      .addEventListener("submit", function (e) {
+        e.preventDefault();
+        const email = document.getElementById("email").value;
+        loginUser(email); // redirects to dashboard
+      });
+  </script>
 
 </body>
 </html>
+
 
