@@ -129,31 +129,46 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  // ======================
-// LOAD SAVED REPORTS ON PAGE LOAD
-// ======================
-const savedReportsSelect = document.getElementById("savedReports");
-savedReportsSelect.innerHTML = '<option value="">— Select a saved report —</option>';
+  /* ======================
+     DOM REFERENCES
+     ====================== */
+  const savedReportsSelect = document.getElementById("savedReports");
+  const fileInput = document.getElementById("fileInput");
+  const loadBtn = document.getElementById("loadReportBtn");
+  const renameBtn = document.getElementById("renameReportBtn");
+  const deleteBtn = document.getElementById("deleteReportBtn");
 
-const savedReports = getSavedReports();
+  /* ======================
+     POPULATE SAVED REPORTS
+     ====================== */
+  function refreshSavedReports() {
+    if (!savedReportsSelect) return;
 
-savedReports.forEach(report => {
-  const option = document.createElement("option");
-  option.value = report.id;
-  option.textContent =
-    report.name || `Report — ${new Date(report.createdAt).toLocaleString()}`;
-  savedReportsSelect.appendChild(option);
-});
- // ======================
-// AUTO-LOAD MOST RECENT REPORT
-// ======================
-if (savedReports.length > 0) {
-  processRows(savedReports[0].rows);
-} 
+    savedReportsSelect.innerHTML =
+      '<option value="">— Select a saved report —</option>';
+
+    const saved = getSavedReports();
+
+    saved.forEach(report => {
+      const option = document.createElement("option");
+      option.value = report.id;
+      option.textContent =
+        report.name || `Report — ${new Date(report.createdAt).toLocaleString()}`;
+      savedReportsSelect.appendChild(option);
+    });
+
+    // Auto-load most recent
+    if (saved.length > 0) {
+      processRows(saved[0].rows);
+    }
+  }
+
+  refreshSavedReports();
+
   /* ======================
      FILE UPLOAD
      ====================== */
-  document.getElementById("fileInput").addEventListener("change", e => {
+  fileInput?.addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -166,6 +181,46 @@ if (savedReports.length > 0) {
     }
 
     isExcel ? readExcel(file) : readCSV(file);
+  });
+
+  /* ======================
+     LOAD REPORT
+     ====================== */
+  loadBtn?.addEventListener("click", () => {
+    const id = savedReportsSelect.value;
+    if (!id) return alert("Please select a report.");
+
+    const report = getSavedReports().find(r => String(r.id) === String(id));
+    if (!report) return alert("Report not found.");
+
+    processRows(report.rows);
+  });
+
+  /* ======================
+     DELETE REPORT
+     ====================== */
+  deleteBtn?.addEventListener("click", () => {
+    const id = savedReportsSelect.value;
+    if (!id) return alert("Select a report to delete.");
+
+    if (!confirm("Delete this report permanently?")) return;
+
+    deleteReport(id);
+    refreshSavedReports();
+  });
+
+  /* ======================
+     RENAME REPORT
+     ====================== */
+  renameBtn?.addEventListener("click", () => {
+    const id = savedReportsSelect.value;
+    if (!id) return alert("Select a report to rename.");
+
+    const name = prompt("Enter new report name:");
+    if (!name || !name.trim()) return;
+
+    renameReport(id, name.trim());
+    refreshSavedReports();
   });
 
   /* ======================
@@ -234,20 +289,20 @@ if (savedReports.length > 0) {
     document.getElementById("totalCredits").textContent = "0.00";
     document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
 
-    // ✅ SAVE REPORT
     saveReport({
       rows,
       totals: {
         income: 0,
-        expenses: expenses,
+        expenses,
         net: -expenses
       }
     });
 
+    refreshSavedReports();
     console.log("✅ Report saved");
   }
 
-}); // ✅ closes DOMContentLoaded
+});
 </script>
 
 </body>
