@@ -49,159 +49,166 @@
 
 <body>
 
-<nav>
-  <strong>Small Business Financials</strong>
-  <div>
-    <a href="dashboard.html">Dashboard</a> |
-    <a href="financialreports.html">Financial Reports</a> |
-    <a href="#" onclick="logoutUser()">Logout</a>
-  </div>
-</nav>
-
-<header>
-  <h1>Financial Reports</h1>
-  <p>Upload a CSV or Excel file to generate income, expense, and profit reports.</p>
-</header>
-
-<input type="file" id="fileInput" accept=".csv,.xlsx" />
-
-<h2>Expense Transactions</h2>
-<table id="debitTable">
-  <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
-<h2>Income Transactions</h2>
-<table id="creditTable">
-  <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
-  </thead>
-  <tbody></tbody>
+  <!-- AUTH GUARD (MUST BE FIRST) -->
   <script src="js/auth.js"></script>
-<script>
-  requireAuth();
-</script>
+  <script>
+    requireAuth();
+  </script>
 
-</table>
+  <!-- NAVIGATION -->
+  <nav>
+    <strong>Small Business Financials</strong>
+    <div>
+      <a href="dashboard.html">Dashboard</a> |
+      <a href="financialreports.html">Financial Reports</a> |
+      <a href="#" onclick="logoutUser()">Logout</a>
+    </div>
+  </nav>
 
-<h2>Financial Summary</h2>
-<div class="summary">
-  <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
-  <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
-  <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
-</div>
+  <header>
+    <h1>Financial Reports</h1>
+    <p>Upload a CSV or Excel file to generate income, expense, and profit reports.</p>
+  </header>
 
-<h2>Category Totals</h2>
+  <input type="file" id="fileInput" accept=".csv,.xlsx" />
 
-<h3>Expenses by Category</h3>
-<table id="expenseCategoryTable">
-  <thead><tr><th>Category</th><th>Total</th></tr></thead>
-  <tbody></tbody>
-</table>
+  <h2>Expense Transactions</h2>
+  <table id="debitTable">
+    <thead>
+      <tr>
+        <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<h3>Income by Category</h3>
-<table id="incomeCategoryTable">
-  <thead><tr><th>Category</th><th>Total</th></tr></thead>
-  <tbody></tbody>
-</table>
+  <h2>Income Transactions</h2>
+  <table id="creditTable">
+    <thead>
+      <tr>
+        <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <h2>Financial Summary</h2>
+  <div class="summary">
+    <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
+    <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
+    <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
+  </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
+  <h2>Category Totals</h2>
 
-  document.getElementById("fileInput").addEventListener("change", handleFile);
+  <h3>Expenses by Category</h3>
+  <table id="expenseCategoryTable">
+    <thead><tr><th>Category</th><th>Total</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
-  function handleFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+  <h3>Income by Category</h3>
+  <table id="incomeCategoryTable">
+    <thead><tr><th>Category</th><th>Total</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
-    if (file.name.toLowerCase().endsWith(".csv")) readCSV(file);
-    else readExcel(file);
-  }
+  <!-- EXCEL LIBRARY -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
-  function readCSV(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rows = e.target.result.split("\n").slice(1).map(r => r.split(","));
-      processRows(rows);
-    };
-    reader.readAsText(file);
-  }
+  <!-- REPORT LOGIC -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
 
-  function readExcel(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const wb = XLSX.read(e.target.result, { type: "binary" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
-      processRows(rows);
-    };
-    reader.readAsBinaryString(file);
-  }
+      document.getElementById("fileInput").addEventListener("change", handleFile);
 
-  function processRows(rows) {
-    const debitBody = document.querySelector("#debitTable tbody");
-    const creditBody = document.querySelector("#creditTable tbody");
-    const expCatBody = document.querySelector("#expenseCategoryTable tbody");
-    const incCatBody = document.querySelector("#incomeCategoryTable tbody");
+      function handleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    debitBody.innerHTML = creditBody.innerHTML = "";
-    expCatBody.innerHTML = incCatBody.innerHTML = "";
-
-    let expenses = 0, income = 0;
-    const expCats = {}, incCats = {};
-
-    rows.forEach(r => {
-      const date = r[0];
-      const desc = r[1];
-      const type = r[2] || "Expense";
-      const amount = parseFloat(r[3] ?? r[2]);
-      if (!desc || isNaN(amount)) return;
-
-      const cat = categorize(desc);
-      const tr = `<tr><td>${date||""}</td><td>${desc}</td><td>${cat}</td><td>$${amount.toFixed(2)}</td></tr>`;
-
-      if (type.toLowerCase() === "expense") {
-        debitBody.innerHTML += tr;
-        expenses += amount;
-        expCats[cat] = (expCats[cat] || 0) + amount;
-      } else {
-        creditBody.innerHTML += tr;
-        income += amount;
-        incCats[cat] = (incCats[cat] || 0) + amount;
+        if (file.name.toLowerCase().endsWith(".csv")) readCSV(file);
+        else readExcel(file);
       }
+
+      function readCSV(file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const rows = e.target.result.split("\n").slice(1).map(r => r.split(","));
+          processRows(rows);
+        };
+        reader.readAsText(file);
+      }
+
+      function readExcel(file) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const wb = XLSX.read(e.target.result, { type: "binary" });
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }).slice(1);
+          processRows(rows);
+        };
+        reader.readAsBinaryString(file);
+      }
+
+      function processRows(rows) {
+        const debitBody = document.querySelector("#debitTable tbody");
+        const creditBody = document.querySelector("#creditTable tbody");
+        const expCatBody = document.querySelector("#expenseCategoryTable tbody");
+        const incCatBody = document.querySelector("#incomeCategoryTable tbody");
+
+        debitBody.innerHTML = creditBody.innerHTML = "";
+        expCatBody.innerHTML = incCatBody.innerHTML = "";
+
+        let expenses = 0, income = 0;
+        const expCats = {}, incCats = {};
+
+        rows.forEach(r => {
+          const date = r[0];
+          const desc = r[1];
+          const type = r[2] || "Expense";
+          const amount = parseFloat(r[3] ?? r[2]);
+          if (!desc || isNaN(amount)) return;
+
+          const cat = categorize(desc);
+          const tr = `<tr><td>${date||""}</td><td>${desc}</td><td>${cat}</td><td>$${amount.toFixed(2)}</td></tr>`;
+
+          if (type.toLowerCase() === "expense") {
+            debitBody.innerHTML += tr;
+            expenses += amount;
+            expCats[cat] = (expCats[cat] || 0) + amount;
+          } else {
+            creditBody.innerHTML += tr;
+            income += amount;
+            incCats[cat] = (incCats[cat] || 0) + amount;
+          }
+        });
+
+        document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+        document.getElementById("totalCredits").textContent = income.toFixed(2);
+        document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+
+        Object.entries(expCats).forEach(([c,v]) =>
+          expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
+        );
+
+        Object.entries(incCats).forEach(([c,v]) =>
+          incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
+        );
+      }
+
+      function categorize(d) {
+        d = d.toLowerCase();
+        if (d.includes("rent")) return "Rent";
+        if (d.includes("payroll") || d.includes("salary")) return "Payroll";
+        if (d.includes("electric") || d.includes("water")) return "Utilities";
+        if (d.includes("google") || d.includes("facebook")) return "Marketing";
+        if (d.includes("uber") || d.includes("flight")) return "Travel";
+        if (d.includes("office")) return "Office Supplies";
+        return "Miscellaneous";
+      }
+
     });
-
-    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-    document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
-
-    Object.entries(expCats).forEach(([c,v]) =>
-      expCatBody.innerHTML += `<tr><td>${c}</td><td class="negative">$${v.toFixed(2)}</td></tr>`
-    );
-
-    Object.entries(incCats).forEach(([c,v]) =>
-      incCatBody.innerHTML += `<tr><td>${c}</td><td class="positive">$${v.toFixed(2)}</td></tr>`
-    );
-  }
-
-  function categorize(d) {
-    d = d.toLowerCase();
-    if (d.includes("rent")) return "Rent";
-    if (d.includes("payroll") || d.includes("salary")) return "Payroll";
-    if (d.includes("electric") || d.includes("water")) return "Utilities";
-    if (d.includes("google") || d.includes("facebook")) return "Marketing";
-    if (d.includes("uber") || d.includes("flight")) return "Travel";
-    if (d.includes("office")) return "Office Supplies";
-    return "Miscellaneous";
-  }
-
-});
-</script>
+  </script>
 
 </body>
 </html>
-
