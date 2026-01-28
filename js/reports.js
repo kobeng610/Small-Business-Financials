@@ -51,3 +51,33 @@ function renameReport(reportId, newName) {
   report.name = newName;
   localStorage.setItem(key, JSON.stringify(reports));
 }
+// ======================
+// DELETE REPORT
+// ======================
+function deleteReport(reportId) {
+  const key = getReportsKey();
+  if (!key) return;
+
+  const reports = getSavedReports().filter(
+    r => String(r.id) !== String(reportId)
+  );
+
+  localStorage.setItem(key, JSON.stringify(reports));
+}
+
+// ======================
+// RENAME REPORT
+// ======================
+function renameReport(reportId, newName) {
+  const key = getReportsKey();
+  if (!key) return;
+
+  const reports = getSavedReports().map(r => {
+    if (String(r.id) === String(reportId)) {
+      return { ...r, name: newName };
+    }
+    return r;
+  });
+
+  localStorage.setItem(key, JSON.stringify(reports));
+}
