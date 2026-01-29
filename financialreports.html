@@ -139,28 +139,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteBtn = document.getElementById("deleteReportBtn");
 
   /* ======================
-     POPULATE SAVED REPORTS
+     PRO VISIBILITY
+     ====================== */
+  if (isProUser()) {
+    document.getElementById("categoryTotalsSection").style.display = "block";
+  }
+
+  /* ======================
+     SAVED REPORTS DROPDOWN
      ====================== */
   function refreshSavedReports() {
-    if (!savedReportsSelect) return;
-
     savedReportsSelect.innerHTML =
       '<option value="">— Select a saved report —</option>';
 
-    const saved = getSavedReports();
+    const savedReports = getSavedReports().slice(0, 10);
 
-    saved.forEach(report => {
+    savedReports.forEach(report => {
       const option = document.createElement("option");
       option.value = report.id;
       option.textContent =
         report.name || `Report — ${new Date(report.createdAt).toLocaleString()}`;
       savedReportsSelect.appendChild(option);
     });
-
-    // Auto-load most recent
-    if (saved.length > 0) {
-      processRows(saved[0].rows);
-    }
   }
 
   refreshSavedReports();
@@ -168,7 +168,7 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ======================
      FILE UPLOAD
      ====================== */
-  fileInput?.addEventListener("change", e => {
+  fileInput.addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -186,20 +186,20 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ======================
      LOAD REPORT
      ====================== */
-  loadBtn?.addEventListener("click", () => {
+  loadBtn.addEventListener("click", () => {
     const id = savedReportsSelect.value;
     if (!id) return alert("Please select a report.");
 
     const report = getSavedReports().find(r => String(r.id) === String(id));
     if (!report) return alert("Report not found.");
 
-    processRows(report.rows);
+    renderReport(report.rows);
   });
 
   /* ======================
      DELETE REPORT
      ====================== */
-  deleteBtn?.addEventListener("click", () => {
+  deleteBtn.addEventListener("click", () => {
     const id = savedReportsSelect.value;
     if (!id) return alert("Select a report to delete.");
 
@@ -212,7 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ======================
      RENAME REPORT
      ====================== */
-  renameBtn?.addEventListener("click", () => {
+  renameBtn.addEventListener("click", () => {
     const id = savedReportsSelect.value;
     if (!id) return alert("Select a report to rename.");
 
@@ -224,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   /* ======================
-     CSV
+     CSV READER
      ====================== */
   function readCSV(file) {
     const reader = new FileReader();
@@ -233,13 +233,13 @@ document.addEventListener("DOMContentLoaded", () => {
         .trim()
         .split("\n")
         .map(r => r.replace(/\r/g, "").split(","));
-      processRows(rows);
+      renderAndSave(rows);
     };
     reader.readAsText(file);
   }
 
   /* ======================
-     EXCEL
+     EXCEL READER
      ====================== */
   function readExcel(file) {
     const reader = new FileReader();
@@ -248,20 +248,34 @@ document.addEventListener("DOMContentLoaded", () => {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      processRows(rows);
+      renderAndSave(rows);
     };
     reader.readAsArrayBuffer(file);
   }
 
   /* ======================
-     PROCESS + SAVE
+     RENDER + SAVE (CORE)
      ====================== */
-  function processRows(rows) {
-    console.log("⚙️ processRows called", rows);
+  function renderAndSave(rows) {
+    renderReport(rows);
 
+    saveReport({
+      name: `Report ${new Date().toLocaleString()}`,
+      rows,
+      totals: calculateTotals(rows)
+    });
+
+    refreshSavedReports();
+  }
+
+  /* ======================
+     RENDER ONLY
+     ====================== */
+  function renderReport(rows) {
     const debitBody = document.querySelector("#debitTable tbody");
-    debitBody.innerHTML = "";
+    const creditBody = document.querySelector("#creditTable tbody");
 
+    let debitHTML = "";
     let expenses = 0;
 
     rows.slice(1).forEach(row => {
@@ -270,13 +284,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const date = row[0];
       const desc = row[1];
       const amt = parseFloat(row[row.length - 1]);
-
       if (!desc || isNaN(amt)) return;
 
       const val = Math.abs(amt);
       expenses += val;
 
-      debitBody.innerHTML += `
+      debitHTML += `
         <tr>
           <td>${date}</td>
           <td>${desc}</td>
@@ -285,25 +298,34 @@ document.addEventListener("DOMContentLoaded", () => {
         </tr>`;
     });
 
+    debitBody.innerHTML = debitHTML;
+    creditBody.innerHTML = "";
+
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = "0.00";
     document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
+  }
 
-    saveReport({
-      rows,
-      totals: {
-        income: 0,
-        expenses,
-        net: -expenses
-      }
+  /* ======================
+     TOTALS CALC
+     ====================== */
+  function calculateTotals(rows) {
+    let expenses = 0;
+
+    rows.slice(1).forEach(row => {
+      const amt = parseFloat(row[row.length - 1]);
+      if (!isNaN(amt)) expenses += Math.abs(amt);
     });
 
-    refreshSavedReports();
-    console.log("✅ Report saved");
+    return {
+      income: 0,
+      expenses,
+      net: -expenses
+    };
   }
 
 });
 </script>
-
+  
 </body>
 </html>
