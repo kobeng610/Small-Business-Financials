@@ -187,14 +187,14 @@ document.addEventListener("DOMContentLoaded", () => {
      LOAD REPORT
      ====================== */
   loadBtn.addEventListener("click", () => {
-    const id = savedReportsSelect.value;
-    if (!id) return alert("Please select a report.");
+  const id = savedReportsSelect.value;
+  if (!id) return alert("Please select a report.");
 
-    const report = getSavedReports().find(r => String(r.id) === String(id));
-    if (!report) return alert("Report not found.");
+  const report = getSavedReports().find(r => String(r.id) === String(id));
+  if (!report) return alert("Report not found.");
 
-    renderReport(report.rows);
-  });
+  renderReport(report.rows); // ✅ NO SAVE
+});
 
   /* ======================
      DELETE REPORT
@@ -227,16 +227,23 @@ document.addEventListener("DOMContentLoaded", () => {
      CSV READER
      ====================== */
   function readCSV(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rows = e.target.result
-        .trim()
-        .split("\n")
-        .map(r => r.replace(/\r/g, "").split(","));
-      renderAndSave(rows);
-    };
-    reader.readAsText(file);
-  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const rows = e.target.result
+      .split("\n")
+      .map(r => r.trim())
+      .filter(Boolean)
+      .map(r => r.split(","));
+
+    if (rows.length < 2) {
+      alert("CSV appears empty or invalid.");
+      return;
+    }
+
+    renderAndSave(rows);
+  };
+  reader.readAsText(file);
+}
 
   /* ======================
      EXCEL READER
@@ -248,8 +255,52 @@ document.addEventListener("DOMContentLoaded", () => {
       const workbook = XLSX.read(data, { type: "array" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      renderAndSave(rows);
-    };
+      function renderAndSave(rows) {
+ function renderReport(rows) {
+  const debitBody = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
+
+  let debitHTML = "";
+  let expenses = 0;
+
+  rows.slice(1).forEach(row => {
+    if (!row || row.length < 3) return;
+
+    const date = row[0];
+    const desc = row[1];
+    const amt = parseFloat(row[row.length - 1]);
+
+    if (!desc || isNaN(amt)) return;
+
+    const val = Math.abs(amt);
+    expenses += val;
+
+    debitHTML += `
+      <tr>
+        <td>${date}</td>
+        <td>${desc}</td>
+        <td>Misc</td>
+        <td class="negative">$${val.toFixed(2)}</td>
+      </tr>`;
+  });
+
+  debitBody.innerHTML = debitHTML;
+  creditBody.innerHTML = "";
+
+  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+  document.getElementById("totalCredits").textContent = "0.00";
+  document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
+}
+
+  saveReport({
+    name: `Report ${new Date().toLocaleString()}`,
+    rows,
+    totals: calculateTotals(rows)
+  });
+
+  refreshSavedReports();
+}
+
     reader.readAsArrayBuffer(file);
   }
 
