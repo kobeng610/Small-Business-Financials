@@ -43,6 +43,9 @@
     }
     .positive { color: green; font-weight: bold; }
     .negative { color: red; font-weight: bold; }
+    #chartToggle button {
+      margin-right: 10px;
+    }
   </style>
 </head>
 
@@ -73,10 +76,7 @@
   <button id="loadReportBtn">Load</button>
   <button id="renameReportBtn">Rename</button>
   <button id="deleteReportBtn">Delete</button>
-  <button id="saveReportBtn" style="margin-top:10px;">
-  Save Report
-</button>
-
+  <button id="saveReportBtn">Save Report</button>
 </section>
 
 <section id="upgradeNotice" style="display:none;">
@@ -108,16 +108,18 @@
   <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
 </div>
 
-<!-- CHARTS (INSIDE BODY ✅) -->
+<!-- CHARTS -->
 <section id="chartsSection" style="display:none;">
   <h2>Visual Reports</h2>
 
-  <div style="max-width:600px;">
-    <canvas id="categoryChart"></canvas>
+  <!-- PART 1: TOGGLE -->
+  <div id="chartToggle" style="margin-bottom:15px; display:none;">
+    <button id="showExpenseChart">Expenses</button>
+    <button id="showIncomeChart">Income</button>
   </div>
 
-  <div style="max-width:700px;">
-    <canvas id="timeChart"></canvas>
+  <div style="max-width:600px;">
+    <canvas id="categoryChart"></canvas>
   </div>
 </section>
 
@@ -127,13 +129,14 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  const fileInput   = document.getElementById("fileInput");
-  const debitBody   = document.querySelector("#debitTable tbody");
-  const creditBody  = document.querySelector("#creditTable tbody");
+  const fileInput  = document.getElementById("fileInput");
+  const debitBody  = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
   const chartsSection = document.getElementById("chartsSection");
 
   let lastUploadedRows = null;
   let categoryChart = null;
+  let chartMode = "expense";
 
   // ---- PRO VISIBILITY ----
   if (isProUser()) {
@@ -174,7 +177,6 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsArrayBuffer(file);
   }
 
-  // ---- CORE PROCESSOR ----
   function processRows(rows) {
     lastUploadedRows = rows;
 
@@ -229,29 +231,35 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCharts(rows);
   }
 
-  // ---- SAVE BUTTON ----
+  // ---- SAVE REPORT ----
   document.getElementById("saveReportBtn").onclick = () => {
-    if (!lastUploadedRows) {
-      alert("Upload a report first.");
-      return;
-    }
-
-    if (!isProUser()) {
-      alert("Saving reports requires the Pro plan.");
-      return;
-    }
+    if (!lastUploadedRows) return alert("Upload a report first.");
+    if (!isProUser()) return alert("Saving reports requires the Pro plan.");
 
     saveReport({
       name: `Report ${new Date().toLocaleString()}`,
       rows: lastUploadedRows
     });
 
-    alert("Report saved.");
     refreshSavedReports();
+    alert("Report saved.");
   };
 
-  // ---- CHARTS ----
+  // ---- TOGGLE ----
+  document.getElementById("showExpenseChart").onclick = () => {
+    chartMode = "expense";
+    renderCharts(lastUploadedRows);
+  };
+
+  document.getElementById("showIncomeChart").onclick = () => {
+    chartMode = "income";
+    renderCharts(lastUploadedRows);
+  };
+
+  // ---- CHART RENDER ----
   function renderCharts(rows) {
+    if (!rows) return;
+
     const headers = rows[0].map(h => String(h).toLowerCase());
     const catIdx  = headers.indexOf("category");
     const amtIdx  = headers.indexOf("amount");
@@ -263,8 +271,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const amt = parseFloat(r[amtIdx]);
       if (isNaN(amt)) return;
 
-      const type = typeIdx >= 0 ? String(r[typeIdx]).toLowerCase() : "expense";
-      if (type !== "expense") return;
+      const type = typeIdx >= 0
+        ? String(r[typeIdx]).toLowerCase()
+        : (amt > 0 ? "income" : "expense");
+
+      if (type !== chartMode) return;
 
       const cat = r[catIdx] || "Uncategorized";
       totals[cat] = (totals[cat] || 0) + Math.abs(amt);
@@ -273,6 +284,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!Object.keys(totals).length) return;
 
     chartsSection.style.display = "block";
+    document.getElementById("chartToggle").style.display = "block";
 
     if (categoryChart) categoryChart.destroy();
 
@@ -283,6 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
         data: {
           labels: Object.keys(totals),
           datasets: [{
+            label: chartMode === "expense" ? "Expenses" : "Income",
             data: Object.values(totals)
           }]
         }
