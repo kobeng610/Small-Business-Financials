@@ -48,7 +48,7 @@
 
 <body>
 
-<!-- AUTH & STORAGE (ORDER MATTERS) -->
+<!-- AUTH & STORAGE -->
 <script src="js/auth.js"></script>
 <script src="js/reports.js"></script>
 <script>requireAuth();</script>
@@ -64,12 +64,12 @@
 
 <header>
   <h1>Financial Reports</h1>
-  <p>Upload a CSV or Excel file to generate income, expense, and profit reports.</p>
+  <p>Upload a CSV or Excel file to generate expense and income reports.</p>
 </header>
 
 <!-- SAVED REPORTS -->
 <section style="margin-bottom:20px;">
-  <label for="savedReports"><strong>Saved Reports:</strong></label>
+  <label><strong>Saved Reports:</strong></label>
   <select id="savedReports">
     <option value="">— Select a saved report —</option>
   </select>
@@ -107,207 +107,107 @@
   <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
 </div>
 
-<!-- PRO ONLY -->
-<div id="categoryTotalsSection" style="display:none;">
-  <h2>Category Totals</h2>
-
-  <h3>Expenses by Category</h3>
-  <table id="expenseCategoryTable">
-    <thead><tr><th>Category</th><th>Total</th></tr></thead>
-    <tbody></tbody>
-  </table>
-
-  <h3>Income by Category</h3>
-  <table id="incomeCategoryTable">
-    <thead><tr><th>Category</th><th>Total</th></tr></thead>
-    <tbody></tbody>
-  </table>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  /* ======================
-     DOM REFERENCES
-     ====================== */
-  const savedReportsSelect = document.getElementById("savedReports");
   const fileInput = document.getElementById("fileInput");
-  const loadBtn = document.getElementById("loadReportBtn");
-  const renameBtn = document.getElementById("renameReportBtn");
-  const deleteBtn = document.getElementById("deleteReportBtn");
+  const savedReportsSelect = document.getElementById("savedReports");
+
+  const debitBody = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
 
   /* ======================
-     PRO VISIBILITY
-     ====================== */
-  if (isProUser()) {
-    document.getElementById("categoryTotalsSection").style.display = "block";
-  }
-
-  /* ======================
-     SAVED REPORTS DROPDOWN
+     SAVED REPORTS
      ====================== */
   function refreshSavedReports() {
     savedReportsSelect.innerHTML =
       '<option value="">— Select a saved report —</option>';
 
-    const savedReports = getSavedReports().slice(0, 10);
-
-    savedReports.forEach(report => {
-      const option = document.createElement("option");
-      option.value = report.id;
-      option.textContent =
-        report.name || `Report — ${new Date(report.createdAt).toLocaleString()}`;
-      savedReportsSelect.appendChild(option);
+    getSavedReports().slice(0, 20).forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.name || new Date(r.createdAt).toLocaleString();
+      savedReportsSelect.appendChild(opt);
     });
   }
 
   refreshSavedReports();
 
-  /* ======================
-     FILE UPLOAD
-     ====================== */
-  fileInput.addEventListener("change", e => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const isExcel = file.name.toLowerCase().endsWith(".xlsx");
-
-    if (isExcel && !isProUser()) {
-      alert("Excel uploads are a Pro feature.");
-      e.target.value = "";
-      return;
-    }
-
-    isExcel ? readExcel(file) : readCSV(file);
-  });
-
-  /* ======================
-     LOAD REPORT
-     ====================== */
-  loadBtn.addEventListener("click", () => {
-  const id = savedReportsSelect.value;
-  if (!id) return alert("Please select a report.");
-
-  const report = getSavedReports().find(r => String(r.id) === String(id));
-  if (!report) return alert("Report not found.");
-
-  renderReport(report.rows); // ✅ NO SAVE
-});
-
-  /* ======================
-     DELETE REPORT
-     ====================== */
-  deleteBtn.addEventListener("click", () => {
+  document.getElementById("loadReportBtn").onclick = () => {
     const id = savedReportsSelect.value;
-    if (!id) return alert("Select a report to delete.");
+    if (!id) return alert("Select a report first.");
+
+    const report = getSavedReports().find(r => String(r.id) === String(id));
+    if (!report) return alert("Report not found.");
+
+    renderReport(report.rows);
+  };
+
+  document.getElementById("deleteReportBtn").onclick = () => {
+    const id = savedReportsSelect.value;
+    if (!id) return alert("Select a report first.");
 
     if (!confirm("Delete this report permanently?")) return;
 
     deleteReport(id);
     refreshSavedReports();
-  });
+  };
 
-  /* ======================
-     RENAME REPORT
-     ====================== */
-  renameBtn.addEventListener("click", () => {
+  document.getElementById("renameReportBtn").onclick = () => {
     const id = savedReportsSelect.value;
-    if (!id) return alert("Select a report to rename.");
+    if (!id) return alert("Select a report first.");
 
-    const name = prompt("Enter new report name:");
-    if (!name || !name.trim()) return;
+    const name = prompt("New report name:");
+    if (!name) return;
 
     renameReport(id, name.trim());
     refreshSavedReports();
-  });
-
-  /* ======================
-     CSV READER
-     ====================== */
-  function readCSV(file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    const rows = e.target.result
-      .split("\n")
-      .map(r => r.trim())
-      .filter(Boolean)
-      .map(r => r.split(","));
-
-    if (rows.length < 2) {
-      alert("CSV appears empty or invalid.");
-      return;
-    }
-
-    renderAndSave(rows);
   };
-  reader.readAsText(file);
-}
 
   /* ======================
-     EXCEL READER
+     FILE UPLOAD
      ====================== */
+  fileInput.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const isExcel = file.name.endsWith(".xlsx");
+    isExcel ? readExcel(file) : readCSV(file);
+  };
+
+  function readCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result
+        .split("\n")
+        .map(r => r.trim())
+        .filter(Boolean)
+        .map(r => r.split(","));
+
+      handleNewReport(rows);
+    };
+    reader.readAsText(file);
+  }
+
   function readExcel(file) {
     const reader = new FileReader();
     reader.onload = e => {
       const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const wb = XLSX.read(data, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      function renderAndSave(rows) {
- function renderReport(rows) {
-  const debitBody = document.querySelector("#debitTable tbody");
-  const creditBody = document.querySelector("#creditTable tbody");
 
-  let debitHTML = "";
-  let expenses = 0;
-
-  rows.slice(1).forEach(row => {
-    if (!row || row.length < 3) return;
-
-    const date = row[0];
-    const desc = row[1];
-    const amt = parseFloat(row[row.length - 1]);
-
-    if (!desc || isNaN(amt)) return;
-
-    const val = Math.abs(amt);
-    expenses += val;
-
-    debitHTML += `
-      <tr>
-        <td>${date}</td>
-        <td>${desc}</td>
-        <td>Misc</td>
-        <td class="negative">$${val.toFixed(2)}</td>
-      </tr>`;
-  });
-
-  debitBody.innerHTML = debitHTML;
-  creditBody.innerHTML = "";
-
-  document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-  document.getElementById("totalCredits").textContent = "0.00";
-  document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
-}
-
-  saveReport({
-    name: `Report ${new Date().toLocaleString()}`,
-    rows,
-    totals: calculateTotals(rows)
-  });
-
-  refreshSavedReports();
-}
-
+      handleNewReport(rows);
+    };
     reader.readAsArrayBuffer(file);
   }
 
   /* ======================
-     RENDER + SAVE (CORE)
+     CORE LOGIC
      ====================== */
-  function renderAndSave(rows) {
+  function handleNewReport(rows) {
     renderReport(rows);
 
     saveReport({
@@ -319,14 +219,10 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshSavedReports();
   }
 
-  /* ======================
-     RENDER ONLY
-     ====================== */
   function renderReport(rows) {
-    const debitBody = document.querySelector("#debitTable tbody");
-    const creditBody = document.querySelector("#creditTable tbody");
+    debitBody.innerHTML = "";
+    creditBody.innerHTML = "";
 
-    let debitHTML = "";
     let expenses = 0;
 
     rows.slice(1).forEach(row => {
@@ -335,12 +231,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const date = row[0];
       const desc = row[1];
       const amt = parseFloat(row[row.length - 1]);
-      if (!desc || isNaN(amt)) return;
+      if (isNaN(amt)) return;
 
       const val = Math.abs(amt);
       expenses += val;
 
-      debitHTML += `
+      debitBody.innerHTML += `
         <tr>
           <td>${date}</td>
           <td>${desc}</td>
@@ -349,34 +245,23 @@ document.addEventListener("DOMContentLoaded", () => {
         </tr>`;
     });
 
-    debitBody.innerHTML = debitHTML;
-    creditBody.innerHTML = "";
-
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = "0.00";
     document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
   }
 
-  /* ======================
-     TOTALS CALC
-     ====================== */
   function calculateTotals(rows) {
     let expenses = 0;
-
-    rows.slice(1).forEach(row => {
-      const amt = parseFloat(row[row.length - 1]);
-      if (!isNaN(amt)) expenses += Math.abs(amt);
+    rows.slice(1).forEach(r => {
+      const a = parseFloat(r[r.length - 1]);
+      if (!isNaN(a)) expenses += Math.abs(a);
     });
-
-    return {
-      income: 0,
-      expenses,
-      net: -expenses
-    };
+    return { income: 0, expenses, net: -expenses };
   }
 
 });
 </script>
-  
+
 </body>
 </html>
+
