@@ -67,8 +67,8 @@
   <p>Upload a CSV or Excel file to generate expense and income reports.</p>
 </header>
 
-<!-- SAVED REPORTS -->
-<section style="margin-bottom:20px;">
+<!-- SAVED REPORTS (PRO ONLY) -->
+<section id="savedReportsSection" style="margin-bottom:20px; display:none;">
   <label><strong>Saved Reports:</strong></label>
   <select id="savedReports">
     <option value="">— Select a saved report —</option>
@@ -76,6 +76,11 @@
   <button id="loadReportBtn">Load</button>
   <button id="renameReportBtn">Rename</button>
   <button id="deleteReportBtn">Delete</button>
+</section>
+
+<!-- FREE USER MESSAGE -->
+<section id="upgradeNotice" style="margin-bottom:20px; display:none;">
+  <em>Saved reports, history, and exports are available on the Pro plan.</em>
 </section>
 
 <input type="file" id="fileInput" accept=".csv,.xlsx" />
@@ -113,6 +118,14 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   const fileInput = document.getElementById("fileInput");
+  const savedSection = document.getElementById("savedReportsSection");
+const upgradeNotice = document.getElementById("upgradeNotice");
+
+if (isProUser()) {
+  savedSection.style.display = "block";
+} else {
+  upgradeNotice.style.display = "block";
+}
   const savedSelect = document.getElementById("savedReports");
 
   const debitBody = document.querySelector("#debitTable tbody");
@@ -263,14 +276,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("netBalance").textContent =
       (income - expenses).toFixed(2);
 
-    saveReport({
-      name: `Report ${new Date().toLocaleString()}`,
-      rows,
-      totals: { income, expenses, net: income - expenses }
-    });
-
-    refreshSavedReports();
-  }
+    if (isProUser()) {
+  saveReport({
+    name: `Report ${new Date().toLocaleString()}`,
+    rows,
+    totals: { income, expenses, net: income - expenses }
+  });
+  refreshSavedReports();
+}
 
   function renderReport(rows) {
     processAndSave(rows); // reuse logic without re-saving
