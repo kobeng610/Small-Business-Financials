@@ -43,17 +43,15 @@
     }
     .positive { color: green; font-weight: bold; }
     .negative { color: red; font-weight: bold; }
-    #chartToggle button {
-      margin-right: 10px;
-    }
+    .unreviewed { background: #fff3cd; }
+    .locked { background:#f8d7da; padding:10px; margin-bottom:15px; }
+    #chartToggle button { margin-right: 10px; }
   </style>
 </head>
 
 <body>
 
-<!-- AUTH -->
 <script src="js/auth.js"></script>
-<script src="js/reports.js"></script>
 <script>requireAuth();</script>
 
 <nav>
@@ -67,28 +65,45 @@
 
 <header>
   <h1>Financial Reports</h1>
-  <p>Upload a CSV or Excel file to generate expense and income reports.</p>
+  <p>Period-based bookkeeping with review and locking.</p>
 </header>
 
-<section id="savedReportsSection" style="display:none;">
-  <label><strong>Saved Reports:</strong></label>
-  <select id="savedReports"></select>
-  <button id="loadReportBtn">Load</button>
-  <button id="renameReportBtn">Rename</button>
-  <button id="deleteReportBtn">Delete</button>
-  <button id="saveReportBtn">Save Report</button>
-</section>
+<label><strong>Period:</strong></label>
+<select id="periodSelector">
+  <option value="2026-01">January 2026</option>
+  <option value="2026-02">February 2026</option>
+</select>
 
-<section id="upgradeNotice" style="display:none;">
-  <em>Saved reports and exports are available on the Pro plan.</em>
-</section>
+<button id="closePeriodBtn">Close Period</button>
+<button id="reopenPeriodBtn" style="display:none;">Reopen Period</button>
+
+<div id="lockNotice" class="locked" style="display:none;">
+  🔒 This period is closed. Transactions are locked.
+</div>
+
+<hr>
+
+<h2>Manual Transaction Entry</h2>
+<div>
+  <input type="date" id="mDate">
+  <input type="text" id="mDesc" placeholder="Description">
+  <input type="number" id="mAmt" step="0.01" placeholder="Amount">
+  <select id="mType">
+    <option value="expense">Expense</option>
+    <option value="income">Income</option>
+  </select>
+  <input type="text" id="mCat" placeholder="Category">
+  <button id="addTxnBtn">Add</button>
+</div>
+
+<hr>
 
 <input type="file" id="fileInput" accept=".csv,.xlsx" />
 
 <h2>Expense Transactions</h2>
 <table id="debitTable">
   <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
+    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Reviewed</th></tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -96,31 +111,24 @@
 <h2>Income Transactions</h2>
 <table id="creditTable">
   <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
+    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Reviewed</th></tr>
   </thead>
   <tbody></tbody>
 </table>
 
-<h2>Financial Summary</h2>
+<h2>Financial Summary (Reviewed Only)</h2>
 <div class="summary">
-  <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
-  <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
-  <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
+  <p>Total Expenses: $<span id="totalDebits">0.00</span></p>
+  <p>Total Income: $<span id="totalCredits">0.00</span></p>
+  <p>Net Profit: $<span id="netBalance">0.00</span></p>
 </div>
 
-<!-- CHARTS -->
 <section id="chartsSection" style="display:none;">
-  <h2>Visual Reports</h2>
-
-  <!-- PART 1: TOGGLE -->
-  <div id="chartToggle" style="margin-bottom:15px; display:none;">
+  <div id="chartToggle" style="display:none;">
     <button id="showExpenseChart">Expenses</button>
     <button id="showIncomeChart">Income</button>
   </div>
-
-  <div style="max-width:600px;">
-    <canvas id="categoryChart"></canvas>
-  </div>
+  <canvas id="categoryChart"></canvas>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -129,236 +137,152 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  // ----------------------
-  // ELEMENTS & STATE
-  // ----------------------
-  const fileInput  = document.getElementById("fileInput");
-  const debitBody  = document.querySelector("#debitTable tbody");
-  const creditBody = document.querySelector("#creditTable tbody");
-  const chartsSection = document.getElementById("chartsSection");
-  const savedSelect = document.getElementById("savedReports");
-
-  let lastUploadedRows = null;
-  let categoryChart = null;
+  let currentPeriod = periodSelector.value;
   let chartMode = "expense";
+  let categoryChart = null;
 
-  // ----------------------
-  // PRO VISIBILITY
-  // ----------------------
-  if (isProUser()) {
-    document.getElementById("savedReportsSection").style.display = "block";
-  } else {
-    document.getElementById("upgradeNotice").style.display = "block";
+  function periodKey() {
+    const u = getCurrentUser();
+    return `sbfa_period_${u.email}_${currentPeriod}`;
   }
 
-  // ----------------------
-  // HELPERS
-  // ----------------------
-  function excelDateToISO(value) {
-    if (typeof value === "number") {
-      const date = new Date((value - 25569) * 86400 * 1000);
-      return date.toISOString().split("T")[0];
-    }
-    return value;
+  function txnKey() {
+    const u = getCurrentUser();
+    return `sbfa_txns_${u.email}_${currentPeriod}`;
   }
 
-  // ----------------------
-  // SAVED REPORTS
-  // ----------------------
-  function refreshSavedReports() {
-    savedSelect.innerHTML = '<option value="">— Select a saved report —</option>';
-    getSavedReports().forEach(r => {
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name;
-      savedSelect.appendChild(opt);
+  function isClosed() {
+    return JSON.parse(localStorage.getItem(periodKey()) || "{}").closed;
+  }
+
+  function setClosed(val) {
+    localStorage.setItem(periodKey(), JSON.stringify({
+      closed: val,
+      closedAt: val ? new Date().toISOString() : null
+    }));
+  }
+
+  function loadTxns() {
+    return JSON.parse(localStorage.getItem(txnKey()) || "[]");
+  }
+
+  function saveTxns(txns) {
+    localStorage.setItem(txnKey(), JSON.stringify(txns));
+  }
+
+  function updateLockUI() {
+    const closed = isClosed();
+    lockNotice.style.display = closed ? "block" : "none";
+    closePeriodBtn.style.display = closed ? "none" : "inline";
+    reopenPeriodBtn.style.display = closed ? "inline" : "none";
+    addTxnBtn.disabled = closed;
+    fileInput.disabled = closed;
+  }
+
+  periodSelector.onchange = e => {
+    currentPeriod = e.target.value;
+    updateLockUI();
+    render(loadTxns());
+  };
+
+  closePeriodBtn.onclick = () => {
+    if (!confirm("Close this period? This locks all transactions.")) return;
+    setClosed(true);
+    updateLockUI();
+  };
+
+  reopenPeriodBtn.onclick = () => {
+    if (!confirm("Reopen this period?")) return;
+    setClosed(false);
+    updateLockUI();
+  };
+
+  addTxnBtn.onclick = () => {
+    if (isClosed()) return alert("Period is closed.");
+    const txns = loadTxns();
+    txns.push({
+      id: Date.now(),
+      date: mDate.value,
+      description: mDesc.value,
+      amount: Math.abs(parseFloat(mAmt.value)),
+      type: mType.value,
+      category: mCat.value || "Uncategorized",
+      reviewed: false
     });
-  }
-
-  refreshSavedReports();
-
-  document.getElementById("loadReportBtn").onclick = () => {
-    const id = savedSelect.value;
-    if (!id) return alert("Select a saved report.");
-
-    const report = getSavedReports().find(
-      r => String(r.id) === String(id)
-    );
-
-    if (!report) return alert("Report not found.");
-
-    lastUploadedRows = report.rows;
-    processRows(report.rows);
+    saveTxns(txns);
+    render(txns);
   };
 
-  // ----------------------
-  // FILE UPLOAD
-  // ----------------------
-  fileInput.onchange = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    file.name.endsWith(".xlsx") ? readExcel(file) : readCSV(file);
+  window.toggleReview = id => {
+    if (isClosed()) return alert("Period is closed.");
+    const txns = loadTxns();
+    txns.forEach(t => {
+      if (String(t.id) === String(id)) t.reviewed = !t.reviewed;
+    });
+    saveTxns(txns);
+    render(txns);
   };
 
-  function readCSV(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const rows = e.target.result
-        .split(/\r?\n/)
-        .filter(Boolean)
-        .map(r => r.split(",").map(c => c.trim()));
-      processRows(rows);
-    };
-    reader.readAsText(file);
-  }
+  function render(txns) {
+    debitTable.tBodies[0].innerHTML = "";
+    creditTable.tBodies[0].innerHTML = "";
 
-  function readExcel(file) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json(
-        wb.Sheets[wb.SheetNames[0]],
-        { header: 1 }
-      );
-      processRows(rows);
-    };
-    reader.readAsArrayBuffer(file);
-  }
-
-  // ----------------------
-  // CORE PROCESSOR
-  // ----------------------
-  function processRows(rows) {
-    lastUploadedRows = rows;
-
-    const headers = rows[0].map(h => String(h).toLowerCase());
-    const idx = {
-      date: headers.indexOf("date"),
-      desc: headers.indexOf("description"),
-      cat:  headers.indexOf("category"),
-      amt:  headers.indexOf("amount"),
-      type: headers.indexOf("type")
-    };
-
-    debitBody.innerHTML = "";
-    creditBody.innerHTML = "";
-
-    let expenses = 0;
-    let income = 0;
-
-    rows.slice(1).forEach(r => {
-      const amt = parseFloat(r[idx.amt]);
-      if (isNaN(amt)) return;
-
-      const val = Math.abs(amt);
-      const type = idx.type >= 0 ? String(r[idx.type]).toLowerCase() : "expense";
-
-      if (type === "income") {
-        income += val;
-        creditBody.innerHTML += `
-          <tr>
-            <td>${excelDateToISO(r[idx.date])}</td>
-            <td>${r[idx.desc]}</td>
-            <td>${r[idx.cat] || "Misc"}</td>
-            <td class="positive">$${val.toFixed(2)}</td>
-          </tr>`;
+    let expenses = 0, income = 0;
+    txns.forEach(t => {
+      const row = `
+        <tr class="${t.reviewed ? "" : "unreviewed"}">
+          <td>${t.date}</td>
+          <td>${t.description}</td>
+          <td>${t.category}</td>
+          <td class="${t.type === "income" ? "positive" : "negative"}">
+            $${t.amount.toFixed(2)}
+          </td>
+          <td><input type="checkbox" ${t.reviewed ? "checked" : ""}
+            onchange="toggleReview('${t.id}')"></td>
+        </tr>`;
+      if (t.type === "income") {
+        creditTable.tBodies[0].innerHTML += row;
+        if (t.reviewed) income += t.amount;
       } else {
-        expenses += val;
-        debitBody.innerHTML += `
-          <tr>
-            <td>${excelDateToISO(r[idx.date])}</td>
-            <td>${r[idx.desc]}</td>
-            <td>${r[idx.cat] || "Misc"}</td>
-            <td class="negative">$${val.toFixed(2)}</td>
-          </tr>`;
+        debitTable.tBodies[0].innerHTML += row;
+        if (t.reviewed) expenses += t.amount;
       }
     });
 
-    document.getElementById("totalDebits").textContent  = expenses.toFixed(2);
-    document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent   =
-      (income - expenses).toFixed(2);
+    totalDebits.textContent = expenses.toFixed(2);
+    totalCredits.textContent = income.toFixed(2);
+    netBalance.textContent = (income - expenses).toFixed(2);
 
-    renderCharts(rows);
+    renderChart(txns.filter(t => t.reviewed));
   }
 
-  // ----------------------
-  // SAVE REPORT
-  // ----------------------
-  document.getElementById("saveReportBtn").onclick = () => {
-    if (!lastUploadedRows) return alert("Upload a report first.");
-    if (!isProUser()) return alert("Saving reports requires the Pro plan.");
-
-    saveReport({
-      name: `Report ${new Date().toLocaleString()}`,
-      rows: lastUploadedRows
-    });
-
-    refreshSavedReports();
-    alert("Report saved.");
-  };
-
-  // ----------------------
-  // TOGGLE
-  // ----------------------
-  document.getElementById("showExpenseChart").onclick = () => {
-    chartMode = "expense";
-    renderCharts(lastUploadedRows);
-  };
-
-  document.getElementById("showIncomeChart").onclick = () => {
-    chartMode = "income";
-    renderCharts(lastUploadedRows);
-  };
-
-  // ----------------------
-  // CHARTS
-  // ----------------------
-  function renderCharts(rows) {
-    if (!rows) return;
-
-    const headers = rows[0].map(h => String(h).toLowerCase());
-    const catIdx  = headers.indexOf("category");
-    const amtIdx  = headers.indexOf("amount");
-    const typeIdx = headers.indexOf("type");
-
+  function renderChart(txns) {
     const totals = {};
-
-    rows.slice(1).forEach(r => {
-      const amt = parseFloat(r[amtIdx]);
-      if (isNaN(amt)) return;
-
-      const type = typeIdx >= 0
-        ? String(r[typeIdx]).toLowerCase()
-        : (amt > 0 ? "income" : "expense");
-
-      if (type !== chartMode) return;
-
-      const cat = r[catIdx] || "Uncategorized";
-      totals[cat] = (totals[cat] || 0) + Math.abs(amt);
+    txns.forEach(t => {
+      if (t.type !== chartMode) return;
+      totals[t.category] = (totals[t.category] || 0) + t.amount;
     });
 
+    if (categoryChart) categoryChart.destroy();
     if (!Object.keys(totals).length) return;
 
     chartsSection.style.display = "block";
-    document.getElementById("chartToggle").style.display = "block";
+    chartToggle.style.display = "block";
 
-    if (categoryChart) categoryChart.destroy();
-
-    categoryChart = new Chart(
-      document.getElementById("categoryChart"),
-      {
-        type: "pie",
-        data: {
-          labels: Object.keys(totals),
-          datasets: [{
-            label: chartMode === "expense" ? "Expenses" : "Income",
-            data: Object.values(totals)
-          }]
-        }
+    categoryChart = new Chart(categoryChart, {
+      type: "pie",
+      data: {
+        labels: Object.keys(totals),
+        datasets: [{ data: Object.values(totals) }]
       }
-    );
+    });
   }
+
+  showExpenseChart.onclick = () => { chartMode = "expense"; render(loadTxns()); };
+  showIncomeChart.onclick = () => { chartMode = "income"; render(loadTxns()); };
+
+  updateLockUI();
+  render(loadTxns());
 
 });
 </script>
