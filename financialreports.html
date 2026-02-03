@@ -73,6 +73,10 @@
   <button id="loadReportBtn">Load</button>
   <button id="renameReportBtn">Rename</button>
   <button id="deleteReportBtn">Delete</button>
+  <button id="saveReportBtn" style="margin-top:10px;">
+  Save Report
+</button>
+
 </section>
 
 <section id="upgradeNotice" style="display:none;">
@@ -123,20 +127,22 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  const fileInput = document.getElementById("fileInput");
-  const debitBody = document.querySelector("#debitTable tbody");
-  const creditBody = document.querySelector("#creditTable tbody");
+  const fileInput   = document.getElementById("fileInput");
+  const debitBody   = document.querySelector("#debitTable tbody");
+  const creditBody  = document.querySelector("#creditTable tbody");
   const chartsSection = document.getElementById("chartsSection");
 
+  let lastUploadedRows = null;
   let categoryChart = null;
-  let timeChart = null;
 
+  // ---- PRO VISIBILITY ----
   if (isProUser()) {
     document.getElementById("savedReportsSection").style.display = "block";
   } else {
     document.getElementById("upgradeNotice").style.display = "block";
   }
 
+  // ---- FILE UPLOAD ----
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -150,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .split(/\r?\n/)
         .filter(Boolean)
         .map(r => r.split(",").map(c => c.trim()));
-      handleRows(rows, true);
+      processRows(rows);
     };
     reader.readAsText(file);
   }
@@ -159,26 +165,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const reader = new FileReader();
     reader.onload = e => {
       const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-      handleRows(rows, true);
+      const rows = XLSX.utils.sheet_to_json(
+        wb.Sheets[wb.SheetNames[0]],
+        { header: 1 }
+      );
+      processRows(rows);
     };
     reader.readAsArrayBuffer(file);
   }
 
-  function handleRows(rows, save) {
-    const headers = rows[0].map(h => h.toLowerCase());
+  // ---- CORE PROCESSOR ----
+  function processRows(rows) {
+    lastUploadedRows = rows;
+
+    const headers = rows[0].map(h => String(h).toLowerCase());
     const idx = {
       date: headers.indexOf("date"),
       desc: headers.indexOf("description"),
-      cat: headers.indexOf("category"),
-      amt: headers.indexOf("amount"),
+      cat:  headers.indexOf("category"),
+      amt:  headers.indexOf("amount"),
       type: headers.indexOf("type")
     };
 
     debitBody.innerHTML = "";
     creditBody.innerHTML = "";
 
-    let expenses = 0, income = 0;
+    let expenses = 0;
+    let income = 0;
 
     rows.slice(1).forEach(r => {
       const amt = parseFloat(r[idx.amt]);
@@ -189,44 +202,92 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (type === "income") {
         income += val;
-        creditBody.innerHTML += `<tr><td>${r[idx.date]}</td><td>${r[idx.desc]}</td><td>${r[idx.cat]||"Misc"}</td><td class="positive">$${val.toFixed(2)}</td></tr>`;
+        creditBody.innerHTML += `
+          <tr>
+            <td>${r[idx.date]}</td>
+            <td>${r[idx.desc]}</td>
+            <td>${r[idx.cat] || "Misc"}</td>
+            <td class="positive">$${val.toFixed(2)}</td>
+          </tr>`;
       } else {
         expenses += val;
-        debitBody.innerHTML += `<tr><td>${r[idx.date]}</td><td>${r[idx.desc]}</td><td>${r[idx.cat]||"Misc"}</td><td class="negative">$${val.toFixed(2)}</td></tr>`;
+        debitBody.innerHTML += `
+          <tr>
+            <td>${r[idx.date]}</td>
+            <td>${r[idx.desc]}</td>
+            <td>${r[idx.cat] || "Misc"}</td>
+            <td class="negative">$${val.toFixed(2)}</td>
+          </tr>`;
       }
     });
 
-    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+    document.getElementById("totalDebits").textContent  = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
+    document.getElementById("netBalance").textContent   =
+      (income - expenses).toFixed(2);
 
     renderCharts(rows);
-
-    if (save && isProUser()) {
-      saveReport({ rows, totals:{ income, expenses } });
-    }
   }
 
-  function renderCharts(rows) {
-    chartsSection.style.display = "block";
+  // ---- SAVE BUTTON ----
+  document.getElementById("saveReportBtn").onclick = () => {
+    if (!lastUploadedRows) {
+      alert("Upload a report first.");
+      return;
+    }
 
-    const cats = {};
-    rows.slice(1).forEach(r => {
-      const amt = parseFloat(r[r.length-1]);
-      if (isNaN(amt)) return;
-      const c = r[2] || "Misc";
-      cats[c] = (cats[c] || 0) + Math.abs(amt);
+    if (!isProUser()) {
+      alert("Saving reports requires the Pro plan.");
+      return;
+    }
+
+    saveReport({
+      name: `Report ${new Date().toLocaleString()}`,
+      rows: lastUploadedRows
     });
+
+    alert("Report saved.");
+    refreshSavedReports();
+  };
+
+  // ---- CHARTS ----
+  function renderCharts(rows) {
+    const headers = rows[0].map(h => String(h).toLowerCase());
+    const catIdx  = headers.indexOf("category");
+    const amtIdx  = headers.indexOf("amount");
+    const typeIdx = headers.indexOf("type");
+
+    const totals = {};
+
+    rows.slice(1).forEach(r => {
+      const amt = parseFloat(r[amtIdx]);
+      if (isNaN(amt)) return;
+
+      const type = typeIdx >= 0 ? String(r[typeIdx]).toLowerCase() : "expense";
+      if (type !== "expense") return;
+
+      const cat = r[catIdx] || "Uncategorized";
+      totals[cat] = (totals[cat] || 0) + Math.abs(amt);
+    });
+
+    if (!Object.keys(totals).length) return;
+
+    chartsSection.style.display = "block";
 
     if (categoryChart) categoryChart.destroy();
 
-    categoryChart = new Chart(categoryChartEl = document.getElementById("categoryChart"), {
-      type: "pie",
-      data: {
-        labels: Object.keys(cats),
-        datasets: [{ data: Object.values(cats) }]
+    categoryChart = new Chart(
+      document.getElementById("categoryChart"),
+      {
+        type: "pie",
+        data: {
+          labels: Object.keys(totals),
+          datasets: [{
+            data: Object.values(totals)
+          }]
+        }
       }
-    });
+    );
   }
 
 });
@@ -234,4 +295,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
-
