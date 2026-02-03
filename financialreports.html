@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <title>Financial Reports</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <link rel="stylesheet" href="/css/styles.css?v=1" />
 
   <style>
@@ -16,13 +17,14 @@
     nav {
       display: flex;
       justify-content: space-between;
+      align-items: center;
       margin-bottom: 30px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      background: #fff;
       margin-bottom: 30px;
+      background: #fff;
     }
     th, td {
       border: 1px solid #ddd;
@@ -37,14 +39,16 @@
       padding: 20px;
       border: 1px solid #ddd;
       width: 50%;
+      margin-bottom: 40px;
     }
+    .positive { color: green; font-weight: bold; }
     .negative { color: red; font-weight: bold; }
   </style>
 </head>
 
 <body>
 
-<!-- AUTH FIRST -->
+<!-- AUTH & STORAGE -->
 <script src="js/auth.js"></script>
 <script src="js/reports.js"></script>
 <script>requireAuth();</script>
@@ -58,9 +62,12 @@
   </div>
 </nav>
 
-<h1>Financial Reports</h1>
-<p>Upload a CSV or Excel file to generate expense reports.</p>
+<header>
+  <h1>Financial Reports</h1>
+  <p>Upload a CSV or Excel file to generate expense and income reports.</p>
+</header>
 
+<!-- SAVED REPORTS -->
 <section style="margin-bottom:20px;">
   <label><strong>Saved Reports:</strong></label>
   <select id="savedReports">
@@ -74,18 +81,29 @@
 <input type="file" id="fileInput" accept=".csv,.xlsx" />
 
 <h2>Expense Transactions</h2>
-<table>
+<table id="debitTable">
   <thead>
     <tr>
       <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
     </tr>
   </thead>
-  <tbody id="debitBody"></tbody>
+  <tbody></tbody>
+</table>
+
+<h2>Income Transactions</h2>
+<table id="creditTable">
+  <thead>
+    <tr>
+      <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
 </table>
 
 <h2>Financial Summary</h2>
 <div class="summary">
   <p><strong>Total Expenses:</strong> $<span id="totalDebits">0.00</span></p>
+  <p><strong>Total Income:</strong> $<span id="totalCredits">0.00</span></p>
   <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
 </div>
 
@@ -95,52 +113,56 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   const fileInput = document.getElementById("fileInput");
-  const savedReportsSelect = document.getElementById("savedReports");
-  const debitBody = document.getElementById("debitBody");
+  const savedSelect = document.getElementById("savedReports");
+
+  const debitBody = document.querySelector("#debitTable tbody");
+  const creditBody = document.querySelector("#creditTable tbody");
 
   /* ======================
-     SAVED REPORTS
+     UTILITIES
      ====================== */
-  function refreshSavedReports() {
-    savedReportsSelect.innerHTML =
-      '<option value="">— Select a saved report —</option>';
+  function excelDateToISO(n) {
+    return new Date((n - 25569) * 86400 * 1000)
+      .toISOString()
+      .split("T")[0];
+  }
 
+  function refreshSavedReports() {
+    savedSelect.innerHTML = '<option value="">— Select a saved report —</option>';
     getSavedReports().slice(0, 20).forEach(r => {
       const opt = document.createElement("option");
       opt.value = r.id;
       opt.textContent = r.name || new Date(r.createdAt).toLocaleString();
-      savedReportsSelect.appendChild(opt);
+      savedSelect.appendChild(opt);
     });
   }
 
   refreshSavedReports();
 
+  /* ======================
+     LOAD / RENAME / DELETE
+     ====================== */
   document.getElementById("loadReportBtn").onclick = () => {
-    const id = savedReportsSelect.value;
+    const id = savedSelect.value;
     if (!id) return alert("Select a report.");
-
-    const report = getSavedReports().find(r => String(r.id) === String(id));
-    if (!report) return;
-
-    renderReport(report.rows);
+    const r = getSavedReports().find(x => String(x.id) === String(id));
+    if (!r) return alert("Report not found.");
+    renderReport(r.rows);
   };
 
   document.getElementById("deleteReportBtn").onclick = () => {
-    const id = savedReportsSelect.value;
+    const id = savedSelect.value;
     if (!id) return alert("Select a report.");
-
     if (!confirm("Delete this report permanently?")) return;
     deleteReport(id);
     refreshSavedReports();
   };
 
   document.getElementById("renameReportBtn").onclick = () => {
-    const id = savedReportsSelect.value;
+    const id = savedSelect.value;
     if (!id) return alert("Select a report.");
-
     const name = prompt("New report name:");
     if (!name) return;
-
     renameReport(id, name.trim());
     refreshSavedReports();
   };
@@ -151,7 +173,6 @@ document.addEventListener("DOMContentLoaded", () => {
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
-
     file.name.endsWith(".xlsx") ? readExcel(file) : readCSV(file);
   };
 
@@ -163,8 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .map(r => r.trim())
         .filter(Boolean)
         .map(r => r.split(","));
-
-      createNewReport(rows);
+      processAndSave(rows);
     };
     reader.readAsText(file);
   }
@@ -172,72 +192,88 @@ document.addEventListener("DOMContentLoaded", () => {
   function readExcel(file) {
     const reader = new FileReader();
     reader.onload = e => {
-      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      createNewReport(rows);
+      processAndSave(rows);
     };
     reader.readAsArrayBuffer(file);
   }
 
   /* ======================
-     CREATE NEW REPORT (SAVE ONCE)
+     CORE PROCESSOR
      ====================== */
-  function createNewReport(rows) {
-    renderReport(rows);
+  function processAndSave(rows) {
+    const headers = rows[0].map(h => h.toLowerCase());
+
+    const dateIdx = headers.indexOf("date");
+    const descIdx = headers.indexOf("description");
+    const catIdx  = headers.indexOf("category");
+    const amtIdx  = headers.indexOf("amount");
+    const typeIdx = headers.indexOf("type");
+
+    if (dateIdx === -1 || descIdx === -1 || amtIdx === -1) {
+      alert("Spreadsheet must contain Date, Description, and Amount columns.");
+      return;
+    }
+
+    let expenses = 0;
+    let income = 0;
+
+    debitBody.innerHTML = "";
+    creditBody.innerHTML = "";
+
+    let validRows = 0;
+
+    rows.slice(1).forEach(row => {
+      const rawAmt = parseFloat(row[amtIdx]);
+      if (isNaN(rawAmt)) return;
+
+      validRows++;
+
+      let date = row[dateIdx];
+      if (typeof date === "number") date = excelDateToISO(date);
+
+      const desc = row[descIdx];
+      const cat = row[catIdx] || "Misc";
+      const type = typeIdx >= 0 ? String(row[typeIdx]).toLowerCase() : "expense";
+      const val = Math.abs(rawAmt);
+
+      if (type === "income" && rawAmt > 0) {
+        income += val;
+        creditBody.innerHTML += `
+          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
+          <td class="positive">$${val.toFixed(2)}</td></tr>`;
+      } else {
+        expenses += val;
+        debitBody.innerHTML += `
+          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
+          <td class="negative">$${val.toFixed(2)}</td></tr>`;
+      }
+    });
+
+    if (validRows === 0) {
+      alert("No valid transactions found. Report not saved.");
+      return;
+    }
+
+    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
+    document.getElementById("totalCredits").textContent = income.toFixed(2);
+    document.getElementById("netBalance").textContent =
+      (income - expenses).toFixed(2);
 
     saveReport({
       name: `Report ${new Date().toLocaleString()}`,
       rows,
-      totals: calculateTotals(rows)
+      totals: { income, expenses, net: income - expenses }
     });
 
     refreshSavedReports();
   }
 
-  /* ======================
-     RENDER ONLY (NO SAVE)
-     ====================== */
   function renderReport(rows) {
-    debitBody.innerHTML = "";
-    let expenses = 0;
-
-    rows.slice(1).forEach(r => {
-      if (!r || r.length < 3) return;
-
-      let date = r[0];
-      if (typeof date === "number") {
-        date = new Date((date - 25569) * 86400 * 1000)
-          .toISOString().split("T")[0];
-      }
-
-      const desc = r[1];
-      const amt = parseFloat(r[r.length - 1]);
-      if (isNaN(amt)) return;
-
-      expenses += Math.abs(amt);
-
-      debitBody.innerHTML += `
-        <tr>
-          <td>${date}</td>
-          <td>${desc}</td>
-          <td>Misc</td>
-          <td class="negative">$${Math.abs(amt).toFixed(2)}</td>
-        </tr>`;
-    });
-
-    document.getElementById("totalDebits").textContent = expenses.toFixed(2);
-    document.getElementById("netBalance").textContent = (-expenses).toFixed(2);
-  }
-
-  function calculateTotals(rows) {
-    let expenses = 0;
-    rows.slice(1).forEach(r => {
-      const a = parseFloat(r[r.length - 1]);
-      if (!isNaN(a)) expenses += Math.abs(a);
-    });
-    return { income: 0, expenses, net: -expenses };
+    processAndSave(rows); // reuse logic without re-saving
   }
 
 });
