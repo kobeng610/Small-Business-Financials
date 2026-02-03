@@ -46,24 +46,9 @@
   </style>
 </head>
 
-<!-- CHARTS -->
-<section id="chartsSection" style="margin-top:40px; display:none;">
-  <h2>Visual Reports</h2>
-
-  <div style="max-width:600px; margin-bottom:40px;">
-    <h3>Expenses by Category</h3>
-    <canvas id="categoryChart"></canvas>
-  </div>
-
-  <div style="max-width:700px;">
-    <h3>Expenses Over Time</h3>
-    <canvas id="timeChart"></canvas>
-  </div>
-</section>
-
 <body>
 
-<!-- AUTH & STORAGE -->
+<!-- AUTH -->
 <script src="js/auth.js"></script>
 <script src="js/reports.js"></script>
 <script>requireAuth();</script>
@@ -82,20 +67,16 @@
   <p>Upload a CSV or Excel file to generate expense and income reports.</p>
 </header>
 
-<!-- SAVED REPORTS (PRO ONLY) -->
-<section id="savedReportsSection" style="margin-bottom:20px; display:none;">
+<section id="savedReportsSection" style="display:none;">
   <label><strong>Saved Reports:</strong></label>
-  <select id="savedReports">
-    <option value="">— Select a saved report —</option>
-  </select>
+  <select id="savedReports"></select>
   <button id="loadReportBtn">Load</button>
   <button id="renameReportBtn">Rename</button>
   <button id="deleteReportBtn">Delete</button>
 </section>
 
-<!-- FREE USER MESSAGE -->
-<section id="upgradeNotice" style="margin-bottom:20px; display:none;">
-  <em>Saved reports, history, and exports are available on the Pro plan.</em>
+<section id="upgradeNotice" style="display:none;">
+  <em>Saved reports and exports are available on the Pro plan.</em>
 </section>
 
 <input type="file" id="fileInput" accept=".csv,.xlsx" />
@@ -103,9 +84,7 @@
 <h2>Expense Transactions</h2>
 <table id="debitTable">
   <thead>
-    <tr>
-      <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
-    </tr>
+    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -113,9 +92,7 @@
 <h2>Income Transactions</h2>
 <table id="creditTable">
   <thead>
-    <tr>
-      <th>Date</th><th>Description</th><th>Category</th><th>Amount</th>
-    </tr>
+    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th></tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -127,77 +104,39 @@
   <p><strong>Net Profit:</strong> $<span id="netBalance">0.00</span></p>
 </div>
 
+<!-- CHARTS (INSIDE BODY ✅) -->
+<section id="chartsSection" style="display:none;">
+  <h2>Visual Reports</h2>
+
+  <div style="max-width:600px;">
+    <canvas id="categoryChart"></canvas>
+  </div>
+
+  <div style="max-width:700px;">
+    <canvas id="timeChart"></canvas>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
   const fileInput = document.getElementById("fileInput");
-  const savedSection = document.getElementById("savedReportsSection");
-const upgradeNotice = document.getElementById("upgradeNotice");
-
-if (isProUser()) {
-  savedSection.style.display = "block";
-} else {
-  upgradeNotice.style.display = "block";
-}
-  const savedSelect = document.getElementById("savedReports");
-
   const debitBody = document.querySelector("#debitTable tbody");
   const creditBody = document.querySelector("#creditTable tbody");
+  const chartsSection = document.getElementById("chartsSection");
 
-  /* ======================
-     UTILITIES
-     ====================== */
-  function excelDateToISO(n) {
-    return new Date((n - 25569) * 86400 * 1000)
-      .toISOString()
-      .split("T")[0];
+  let categoryChart = null;
+  let timeChart = null;
+
+  if (isProUser()) {
+    document.getElementById("savedReportsSection").style.display = "block";
+  } else {
+    document.getElementById("upgradeNotice").style.display = "block";
   }
 
-  function refreshSavedReports() {
-    savedSelect.innerHTML = '<option value="">— Select a saved report —</option>';
-    getSavedReports().slice(0, 20).forEach(r => {
-      const opt = document.createElement("option");
-      opt.value = r.id;
-      opt.textContent = r.name || new Date(r.createdAt).toLocaleString();
-      savedSelect.appendChild(opt);
-    });
-  }
-
-  refreshSavedReports();
-
-  /* ======================
-     LOAD / RENAME / DELETE
-     ====================== */
-  document.getElementById("loadReportBtn").onclick = () => {
-    const id = savedSelect.value;
-    if (!id) return alert("Select a report.");
-    const r = getSavedReports().find(x => String(x.id) === String(id));
-    if (!r) return alert("Report not found.");
-    renderReport(r.rows);
-  };
-
-  document.getElementById("deleteReportBtn").onclick = () => {
-    const id = savedSelect.value;
-    if (!id) return alert("Select a report.");
-    if (!confirm("Delete this report permanently?")) return;
-    deleteReport(id);
-    refreshSavedReports();
-  };
-
-  document.getElementById("renameReportBtn").onclick = () => {
-    const id = savedSelect.value;
-    if (!id) return alert("Select a report.");
-    const name = prompt("New report name:");
-    if (!name) return;
-    renameReport(id, name.trim());
-    refreshSavedReports();
-  };
-
-  /* ======================
-     FILE UPLOAD
-     ====================== */
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -208,11 +147,10 @@ if (isProUser()) {
     const reader = new FileReader();
     reader.onload = e => {
       const rows = e.target.result
-        .split("\n")
-        .map(r => r.trim())
+        .split(/\r?\n/)
         .filter(Boolean)
-        .map(r => r.split(","));
-      processAndSave(rows);
+        .map(r => r.split(",").map(c => c.trim()));
+      handleRows(rows, true);
     };
     reader.readAsText(file);
   }
@@ -220,88 +158,75 @@ if (isProUser()) {
   function readExcel(file) {
     const reader = new FileReader();
     reader.onload = e => {
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      processAndSave(rows);
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+      handleRows(rows, true);
     };
     reader.readAsArrayBuffer(file);
   }
 
-  /* ======================
-     CORE PROCESSOR
-     ====================== */
-  function processAndSave(rows) {
+  function handleRows(rows, save) {
     const headers = rows[0].map(h => h.toLowerCase());
-
-    const dateIdx = headers.indexOf("date");
-    const descIdx = headers.indexOf("description");
-    const catIdx  = headers.indexOf("category");
-    const amtIdx  = headers.indexOf("amount");
-    const typeIdx = headers.indexOf("type");
-
-    if (dateIdx === -1 || descIdx === -1 || amtIdx === -1) {
-      alert("Spreadsheet must contain Date, Description, and Amount columns.");
-      return;
-    }
-
-    let expenses = 0;
-    let income = 0;
+    const idx = {
+      date: headers.indexOf("date"),
+      desc: headers.indexOf("description"),
+      cat: headers.indexOf("category"),
+      amt: headers.indexOf("amount"),
+      type: headers.indexOf("type")
+    };
 
     debitBody.innerHTML = "";
     creditBody.innerHTML = "";
 
-    let validRows = 0;
+    let expenses = 0, income = 0;
 
-    rows.slice(1).forEach(row => {
-      const rawAmt = parseFloat(row[amtIdx]);
-      if (isNaN(rawAmt)) return;
+    rows.slice(1).forEach(r => {
+      const amt = parseFloat(r[idx.amt]);
+      if (isNaN(amt)) return;
 
-      validRows++;
+      const val = Math.abs(amt);
+      const type = idx.type >= 0 ? String(r[idx.type]).toLowerCase() : "expense";
 
-      let date = row[dateIdx];
-      if (typeof date === "number") date = excelDateToISO(date);
-
-      const desc = row[descIdx];
-      const cat = row[catIdx] || "Misc";
-      const type = typeIdx >= 0 ? String(row[typeIdx]).toLowerCase() : "expense";
-      const val = Math.abs(rawAmt);
-
-      if (type === "income" && rawAmt > 0) {
+      if (type === "income") {
         income += val;
-        creditBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
-          <td class="positive">$${val.toFixed(2)}</td></tr>`;
+        creditBody.innerHTML += `<tr><td>${r[idx.date]}</td><td>${r[idx.desc]}</td><td>${r[idx.cat]||"Misc"}</td><td class="positive">$${val.toFixed(2)}</td></tr>`;
       } else {
         expenses += val;
-        debitBody.innerHTML += `
-          <tr><td>${date}</td><td>${desc}</td><td>${cat}</td>
-          <td class="negative">$${val.toFixed(2)}</td></tr>`;
+        debitBody.innerHTML += `<tr><td>${r[idx.date]}</td><td>${r[idx.desc]}</td><td>${r[idx.cat]||"Misc"}</td><td class="negative">$${val.toFixed(2)}</td></tr>`;
       }
     });
 
-    if (validRows === 0) {
-      alert("No valid transactions found. Report not saved.");
-      return;
-    }
-
     document.getElementById("totalDebits").textContent = expenses.toFixed(2);
     document.getElementById("totalCredits").textContent = income.toFixed(2);
-    document.getElementById("netBalance").textContent =
-      (income - expenses).toFixed(2);
+    document.getElementById("netBalance").textContent = (income - expenses).toFixed(2);
 
-    if (isProUser()) {
-  saveReport({
-    name: `Report ${new Date().toLocaleString()}`,
-    rows,
-    totals: { income, expenses, net: income - expenses }
-  });
-  refreshSavedReports();
-}
+    renderCharts(rows);
 
-  function renderReport(rows) {
-    processAndSave(rows); // reuse logic without re-saving
+    if (save && isProUser()) {
+      saveReport({ rows, totals:{ income, expenses } });
+    }
+  }
+
+  function renderCharts(rows) {
+    chartsSection.style.display = "block";
+
+    const cats = {};
+    rows.slice(1).forEach(r => {
+      const amt = parseFloat(r[r.length-1]);
+      if (isNaN(amt)) return;
+      const c = r[2] || "Misc";
+      cats[c] = (cats[c] || 0) + Math.abs(amt);
+    });
+
+    if (categoryChart) categoryChart.destroy();
+
+    categoryChart = new Chart(categoryChartEl = document.getElementById("categoryChart"), {
+      type: "pie",
+      data: {
+        labels: Object.keys(cats),
+        datasets: [{ data: Object.values(cats) }]
+      }
+    });
   }
 
 });
@@ -309,3 +234,4 @@ if (isProUser()) {
 
 </body>
 </html>
+
