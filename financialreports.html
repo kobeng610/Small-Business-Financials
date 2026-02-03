@@ -129,23 +129,71 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
+  // ----------------------
+  // ELEMENTS & STATE
+  // ----------------------
   const fileInput  = document.getElementById("fileInput");
   const debitBody  = document.querySelector("#debitTable tbody");
   const creditBody = document.querySelector("#creditTable tbody");
   const chartsSection = document.getElementById("chartsSection");
+  const savedSelect = document.getElementById("savedReports");
 
   let lastUploadedRows = null;
   let categoryChart = null;
   let chartMode = "expense";
 
-  // ---- PRO VISIBILITY ----
+  // ----------------------
+  // PRO VISIBILITY
+  // ----------------------
   if (isProUser()) {
     document.getElementById("savedReportsSection").style.display = "block";
   } else {
     document.getElementById("upgradeNotice").style.display = "block";
   }
 
-  // ---- FILE UPLOAD ----
+  // ----------------------
+  // HELPERS
+  // ----------------------
+  function excelDateToISO(value) {
+    if (typeof value === "number") {
+      const date = new Date((value - 25569) * 86400 * 1000);
+      return date.toISOString().split("T")[0];
+    }
+    return value;
+  }
+
+  // ----------------------
+  // SAVED REPORTS
+  // ----------------------
+  function refreshSavedReports() {
+    savedSelect.innerHTML = '<option value="">— Select a saved report —</option>';
+    getSavedReports().forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      opt.textContent = r.name;
+      savedSelect.appendChild(opt);
+    });
+  }
+
+  refreshSavedReports();
+
+  document.getElementById("loadReportBtn").onclick = () => {
+    const id = savedSelect.value;
+    if (!id) return alert("Select a saved report.");
+
+    const report = getSavedReports().find(
+      r => String(r.id) === String(id)
+    );
+
+    if (!report) return alert("Report not found.");
+
+    lastUploadedRows = report.rows;
+    processRows(report.rows);
+  };
+
+  // ----------------------
+  // FILE UPLOAD
+  // ----------------------
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -177,6 +225,9 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsArrayBuffer(file);
   }
 
+  // ----------------------
+  // CORE PROCESSOR
+  // ----------------------
   function processRows(rows) {
     lastUploadedRows = rows;
 
@@ -206,7 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
         income += val;
         creditBody.innerHTML += `
           <tr>
-            <td>${r[idx.date]}</td>
+            <td>${excelDateToISO(r[idx.date])}</td>
             <td>${r[idx.desc]}</td>
             <td>${r[idx.cat] || "Misc"}</td>
             <td class="positive">$${val.toFixed(2)}</td>
@@ -215,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
         expenses += val;
         debitBody.innerHTML += `
           <tr>
-            <td>${r[idx.date]}</td>
+            <td>${excelDateToISO(r[idx.date])}</td>
             <td>${r[idx.desc]}</td>
             <td>${r[idx.cat] || "Misc"}</td>
             <td class="negative">$${val.toFixed(2)}</td>
@@ -231,7 +282,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCharts(rows);
   }
 
-  // ---- SAVE REPORT ----
+  // ----------------------
+  // SAVE REPORT
+  // ----------------------
   document.getElementById("saveReportBtn").onclick = () => {
     if (!lastUploadedRows) return alert("Upload a report first.");
     if (!isProUser()) return alert("Saving reports requires the Pro plan.");
@@ -245,7 +298,9 @@ document.addEventListener("DOMContentLoaded", () => {
     alert("Report saved.");
   };
 
-  // ---- TOGGLE ----
+  // ----------------------
+  // TOGGLE
+  // ----------------------
   document.getElementById("showExpenseChart").onclick = () => {
     chartMode = "expense";
     renderCharts(lastUploadedRows);
@@ -256,7 +311,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCharts(lastUploadedRows);
   };
 
-  // ---- CHART RENDER ----
+  // ----------------------
+  // CHARTS
+  // ----------------------
   function renderCharts(rows) {
     if (!rows) return;
 
