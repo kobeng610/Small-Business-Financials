@@ -164,6 +164,18 @@ document.addEventListener("DOMContentLoaded", () => {
     fileInput.disabled = closed;
   }
 
+  /* =====================
+     DATE NORMALIZATION
+     ===================== */
+  function normalizeDate(value) {
+    if (typeof value === "number") {
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 86400000);
+      return date.toISOString().split("T")[0];
+    }
+    return value;
+  }
+
   function render(txns) {
     debitTable.tBodies[0].innerHTML = "";
     creditTable.tBodies[0].innerHTML = "";
@@ -212,18 +224,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.deleteTxn = id => {
     if (isClosed()) return alert("Period is closed.");
-
     const txns = loadTxns();
     const txn = txns.find(t => String(t.id) === String(id));
     if (!txn) return;
-
     if (txn.reviewed) {
-      alert("Reviewed transactions cannot be deleted. Use an adjustment.");
+      alert("Reviewed transactions cannot be deleted.");
       return;
     }
-
     if (!confirm("Delete this transaction?")) return;
-
     txn.deleted = true;
     saveTxns(txns);
     render(txns);
@@ -231,7 +239,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   addTxnBtn.onclick = () => {
     if (isClosed()) return alert("Period is closed.");
-
     const txns = loadTxns();
     txns.push({
       id: Date.now(),
@@ -243,7 +250,6 @@ document.addEventListener("DOMContentLoaded", () => {
       reviewed: false,
       deleted: false
     });
-
     saveTxns(txns);
     render(txns);
   };
@@ -274,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       txns.push({
         id: Date.now() + Math.random(),
-        date: r[idx.date],
+        date: normalizeDate(r[idx.date]),
         description: r[idx.desc],
         amount: Math.abs(amt),
         type: r[idx.type]?.toLowerCase() || (amt > 0 ? "income" : "expense"),
