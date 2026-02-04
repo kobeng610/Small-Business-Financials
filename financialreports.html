@@ -68,6 +68,15 @@
   <p>Bookkeeping by period with review, locking, and financial intelligence.</p>
 </header>
 
+<!-- =====================
+     UPGRADE BANNER
+     ===================== -->
+<div id="upgradeBanner" class="locked" style="display:none;">
+  <strong>Upgrade to Pro</strong><br>
+  Unlock period closing, financial insights, comparisons, and imports.<br><br>
+  <button id="upgradeBtn">Upgrade to Pro</button>
+</div>
+
 <label><strong>Period:</strong></label>
 <select id="periodSelector">
   <option value="2026-01">January 2026</option>
@@ -139,11 +148,17 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   /* =====================
-     PLAN / ENTITLEMENTS
+     PLAN STORAGE (LOCAL)
      ===================== */
   function getPlan() {
     const user = getCurrentUser();
-    return user?.plan || "free"; // free | pro | advisor
+    return user?.plan || localStorage.getItem("sbfa_plan") || "free";
+  }
+
+  function setPlan(plan) {
+    localStorage.setItem("sbfa_plan", plan);
+    const user = getCurrentUser();
+    if (user) user.plan = plan;
   }
 
   function requirePro(feature) {
@@ -154,6 +169,32 @@ document.addEventListener("DOMContentLoaded", () => {
     return true;
   }
 
+  /* =====================
+     UPGRADE CTA
+     ===================== */
+  const upgradeBanner = document.getElementById("upgradeBanner");
+  const upgradeBtn = document.getElementById("upgradeBtn");
+
+  if (getPlan() !== "pro") {
+    upgradeBanner.style.display = "block";
+  }
+
+  upgradeBtn.onclick = () => {
+    const ok = confirm(
+      "This will upgrade your account to Pro.\n\n" +
+      "Use this after receiving payment via Cash App, Zelle, or invoice.\n\n" +
+      "Continue?"
+    );
+    if (!ok) return;
+
+    setPlan("pro");
+    upgradeBanner.style.display = "none";
+    alert("🎉 Pro features unlocked.");
+  };
+
+  /* =====================
+     PERIOD LOGIC
+     ===================== */
   let currentPeriod = periodSelector.value;
 
   function periodKey(p) {
@@ -205,24 +246,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const curr = summarize(loadTxns(currentPeriod));
     const prior = summarize(loadTxns(prev));
 
-    if (!prior.income && !prior.expenses) {
-      trendPanel.innerHTML =
-        "<em>No prior-period data available.</em>";
-      return;
-    }
-
     function diff(a,b){ return ((a-b)/Math.max(b,1)*100).toFixed(1); }
 
     trendPanel.innerHTML = `
       <ul>
-        <li><strong>Income:</strong>
-          ${curr.income >= prior.income ? "↑" : "↓"}
-          ${diff(curr.income, prior.income)}%</li>
-        <li><strong>Expenses:</strong>
-          ${curr.expenses <= prior.expenses ? "↓" : "↑"}
-          ${diff(curr.expenses, prior.expenses)}%</li>
-        <li><strong>Net Profit:</strong>
-          ${curr.net >= prior.net ? "Improved" : "Declined"}</li>
+        <li><strong>Income:</strong> ${diff(curr.income, prior.income)}%</li>
+        <li><strong>Expenses:</strong> ${diff(curr.expenses, prior.expenses)}%</li>
+        <li><strong>Net:</strong> ${curr.net >= prior.net ? "Improved" : "Declined"}</li>
       </ul>
     `;
   }
@@ -278,7 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
     generateTrends();
   };
 
-  fileInput.onchange = e => {
+  fileInput.onchange = () => {
     if (!requirePro("File imports")) return;
   };
 
