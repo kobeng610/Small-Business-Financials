@@ -104,7 +104,7 @@
   <thead>
     <tr>
       <th>Date</th><th>Description</th><th>Category</th>
-      <th>Amount</th><th>Reviewed</th>
+      <th>Amount</th><th>Actions</th>
     </tr>
   </thead>
   <tbody></tbody>
@@ -115,7 +115,7 @@
   <thead>
     <tr>
       <th>Date</th><th>Description</th><th>Category</th>
-      <th>Amount</th><th>Reviewed</th>
+      <th>Amount</th><th>Actions</th>
     </tr>
   </thead>
   <tbody></tbody>
@@ -170,7 +170,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let expenses = 0, income = 0;
 
-    txns.forEach(t => {
+    txns.filter(t => !t.deleted).forEach(t => {
       const row = `
         <tr class="${t.reviewed ? "" : "unreviewed"}">
           <td>${t.date}</td>
@@ -183,6 +183,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <input type="checkbox"
               ${t.reviewed ? "checked" : ""}
               onchange="toggleReview('${t.id}')">
+            <button onclick="deleteTxn('${t.id}')">Delete</button>
           </td>
         </tr>`;
 
@@ -209,6 +210,25 @@ document.addEventListener("DOMContentLoaded", () => {
     render(txns);
   };
 
+  window.deleteTxn = id => {
+    if (isClosed()) return alert("Period is closed.");
+
+    const txns = loadTxns();
+    const txn = txns.find(t => String(t.id) === String(id));
+    if (!txn) return;
+
+    if (txn.reviewed) {
+      alert("Reviewed transactions cannot be deleted. Use an adjustment.");
+      return;
+    }
+
+    if (!confirm("Delete this transaction?")) return;
+
+    txn.deleted = true;
+    saveTxns(txns);
+    render(txns);
+  };
+
   addTxnBtn.onclick = () => {
     if (isClosed()) return alert("Period is closed.");
 
@@ -220,7 +240,8 @@ document.addEventListener("DOMContentLoaded", () => {
       amount: Math.abs(parseFloat(mAmt.value)),
       type: mType.value,
       category: mCat.value || "Uncategorized",
-      reviewed: false
+      reviewed: false,
+      deleted: false
     });
 
     saveTxns(txns);
@@ -230,10 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
   fileInput.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
-
-    file.name.endsWith(".xlsx")
-      ? readExcel(file)
-      : readCSV(file);
+    file.name.endsWith(".xlsx") ? readExcel(file) : readCSV(file);
   };
 
   function processRows(rows) {
@@ -261,7 +279,8 @@ document.addEventListener("DOMContentLoaded", () => {
         amount: Math.abs(amt),
         type: r[idx.type]?.toLowerCase() || (amt > 0 ? "income" : "expense"),
         category: r[idx.cat] || "Uncategorized",
-        reviewed: false
+        reviewed: false,
+        deleted: false
       });
     });
 
@@ -321,4 +340,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
-
