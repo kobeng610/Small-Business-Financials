@@ -45,7 +45,6 @@
     .negative { color: red; font-weight: bold; }
     .unreviewed { background: #fff3cd; }
     .locked { background:#f8d7da; padding:10px; margin-bottom:15px; }
-    #chartToggle button { margin-right: 10px; }
   </style>
 </head>
 
@@ -67,15 +66,6 @@
   <h1>Financial Reports</h1>
   <p>Bookkeeping by period with review, locking, and financial intelligence.</p>
 </header>
-
-<!-- =====================
-     UPGRADE BANNER
-     ===================== -->
-<div id="upgradeBanner" class="locked" style="display:none;">
-  <strong>Upgrade to Pro</strong><br>
-  Unlock period closing, financial insights, comparisons, and imports.<br><br>
-  <button id="upgradeBtn">Upgrade to Pro</button>
-</div>
 
 <label><strong>Period:</strong></label>
 <select id="periodSelector">
@@ -138,185 +128,197 @@
   <p>Net Profit: $<span id="netBalance">0.00</span></p>
 </div>
 
-<h2>Financial Health Insights</h2>
-<div id="insightsPanel" class="summary"></div>
-
-<h2>Period Comparison</h2>
-<div id="trendPanel" class="summary"></div>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  /* =====================
-     PLAN STORAGE (LOCAL)
-     ===================== */
-  function getPlan() {
-    const user = getCurrentUser();
-    return user?.plan || localStorage.getItem("sbfa_plan") || "free";
-  }
-
-  function setPlan(plan) {
-    localStorage.setItem("sbfa_plan", plan);
-    const user = getCurrentUser();
-    if (user) user.plan = plan;
-  }
-
-  function requirePro(feature) {
-    if (getPlan() !== "pro") {
-      alert(feature + " is available on the Pro plan.");
-      return false;
-    }
-    return true;
-  }
-
-  /* =====================
-     UPGRADE CTA
-     ===================== */
-  const upgradeBanner = document.getElementById("upgradeBanner");
-  const upgradeBtn = document.getElementById("upgradeBtn");
-
-  if (getPlan() !== "pro") {
-    upgradeBanner.style.display = "block";
-  }
-
-  upgradeBtn.onclick = () => {
-    const ok = confirm(
-      "This will upgrade your account to Pro.\n\n" +
-      "Use this after receiving payment via Cash App, Zelle, or invoice.\n\n" +
-      "Continue?"
-    );
-    if (!ok) return;
-
-    setPlan("pro");
-    upgradeBanner.style.display = "none";
-    alert("🎉 Pro features unlocked.");
-  };
-
-  /* =====================
-     PERIOD LOGIC
-     ===================== */
   let currentPeriod = periodSelector.value;
 
-  function periodKey(p) {
-    return `sbfa_period_${getCurrentUser().email}_${p}`;
+  function periodKey() {
+    return `sbfa_period_${getCurrentUser().email}_${currentPeriod}`;
   }
 
-  function txnKey(p) {
-    return `sbfa_txns_${getCurrentUser().email}_${p}`;
+  function txnKey() {
+    return `sbfa_txns_${getCurrentUser().email}_${currentPeriod}`;
   }
 
-  function isClosed(p=currentPeriod) {
-    return JSON.parse(localStorage.getItem(periodKey(p)) || "{}").closed;
+  function isClosed() {
+    return JSON.parse(localStorage.getItem(periodKey()) || "{}").closed;
   }
 
-  function loadTxns(p=currentPeriod) {
-    return JSON.parse(localStorage.getItem(txnKey(p)) || "[]")
-      .filter(t => t.reviewed);
+  function loadTxns() {
+    return JSON.parse(localStorage.getItem(txnKey()) || "[]");
   }
 
-  function summarize(txns) {
-    let income=0, expenses=0;
-    txns.forEach(t=>{
-      if(t.type==="income") income+=t.amount;
-      else expenses+=t.amount;
+  function saveTxns(txns) {
+    localStorage.setItem(txnKey(), JSON.stringify(txns));
+  }
+
+  function updateLockUI() {
+    const closed = isClosed();
+    lockNotice.style.display = closed ? "block" : "none";
+    closePeriodBtn.style.display = closed ? "none" : "inline";
+    reopenPeriodBtn.style.display = closed ? "inline" : "none";
+    addTxnBtn.disabled = closed;
+    fileInput.disabled = closed;
+  }
+
+  function render(txns) {
+    debitTable.tBodies[0].innerHTML = "";
+    creditTable.tBodies[0].innerHTML = "";
+
+    let expenses = 0, income = 0;
+
+    txns.forEach(t => {
+      const row = `
+        <tr class="${t.reviewed ? "" : "unreviewed"}">
+          <td>${t.date}</td>
+          <td>${t.description}</td>
+          <td>${t.category}</td>
+          <td class="${t.type === "income" ? "positive" : "negative"}">
+            $${t.amount.toFixed(2)}
+          </td>
+          <td>
+            <input type="checkbox"
+              ${t.reviewed ? "checked" : ""}
+              onchange="toggleReview('${t.id}')">
+          </td>
+        </tr>`;
+
+      if (t.type === "income") {
+        creditTable.tBodies[0].innerHTML += row;
+        if (t.reviewed) income += t.amount;
+      } else {
+        debitTable.tBodies[0].innerHTML += row;
+        if (t.reviewed) expenses += t.amount;
+      }
     });
-    return { income, expenses, net: income-expenses };
+
+    totalDebits.textContent = expenses.toFixed(2);
+    totalCredits.textContent = income.toFixed(2);
+    netBalance.textContent = (income - expenses).toFixed(2);
   }
 
-  function previousPeriod(p) {
-    const [y,m]=p.split("-").map(Number);
-    return m===1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,"0")}`;
+  window.toggleReview = id => {
+    if (isClosed()) return alert("Period is closed.");
+    const txns = loadTxns();
+    const txn = txns.find(t => String(t.id) === String(id));
+    txn.reviewed = !txn.reviewed;
+    saveTxns(txns);
+    render(txns);
+  };
+
+  addTxnBtn.onclick = () => {
+    if (isClosed()) return alert("Period is closed.");
+
+    const txns = loadTxns();
+    txns.push({
+      id: Date.now(),
+      date: mDate.value,
+      description: mDesc.value,
+      amount: Math.abs(parseFloat(mAmt.value)),
+      type: mType.value,
+      category: mCat.value || "Uncategorized",
+      reviewed: false
+    });
+
+    saveTxns(txns);
+    render(txns);
+  };
+
+  fileInput.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    file.name.endsWith(".xlsx")
+      ? readExcel(file)
+      : readCSV(file);
+  };
+
+  function processRows(rows) {
+    if (isClosed()) return alert("Period is closed.");
+
+    const headers = rows[0].map(h => h.toLowerCase());
+    const idx = {
+      date: headers.indexOf("date"),
+      desc: headers.indexOf("description"),
+      amt: headers.indexOf("amount"),
+      cat: headers.indexOf("category"),
+      type: headers.indexOf("type")
+    };
+
+    const txns = loadTxns();
+
+    rows.slice(1).forEach(r => {
+      const amt = parseFloat(r[idx.amt]);
+      if (isNaN(amt)) return;
+
+      txns.push({
+        id: Date.now() + Math.random(),
+        date: r[idx.date],
+        description: r[idx.desc],
+        amount: Math.abs(amt),
+        type: r[idx.type]?.toLowerCase() || (amt > 0 ? "income" : "expense"),
+        category: r[idx.cat] || "Uncategorized",
+        reviewed: false
+      });
+    });
+
+    saveTxns(txns);
+    render(txns);
   }
 
-  function generateTrends() {
-    if (!requirePro("Period comparison")) {
-      trendPanel.innerHTML =
-        "<em>Upgrade to Pro to unlock period comparisons.</em>";
-      return;
-    }
-
-    const prev = previousPeriod(currentPeriod);
-
-    if (!isClosed(currentPeriod) || !isClosed(prev)) {
-      trendPanel.innerHTML =
-        "<em>Close both periods to view comparisons.</em>";
-      return;
-    }
-
-    const curr = summarize(loadTxns(currentPeriod));
-    const prior = summarize(loadTxns(prev));
-
-    function diff(a,b){ return ((a-b)/Math.max(b,1)*100).toFixed(1); }
-
-    trendPanel.innerHTML = `
-      <ul>
-        <li><strong>Income:</strong> ${diff(curr.income, prior.income)}%</li>
-        <li><strong>Expenses:</strong> ${diff(curr.expenses, prior.expenses)}%</li>
-        <li><strong>Net:</strong> ${curr.net >= prior.net ? "Improved" : "Declined"}</li>
-      </ul>
-    `;
+  function readCSV(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const rows = e.target.result
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map(r => r.split(",").map(c => c.trim()));
+      processRows(rows);
+    };
+    reader.readAsText(file);
   }
 
-  function generateInsights() {
-    if (!requirePro("Financial insights")) {
-      insightsPanel.innerHTML =
-        "<em>Upgrade to Pro to unlock financial insights.</em>";
-      return;
-    }
-
-    if (!isClosed()) {
-      insightsPanel.innerHTML =
-        "<em>Close the period to view insights.</em>";
-      return;
-    }
-
-    const {income,expenses,net} = summarize(loadTxns());
-
-    insightsPanel.innerHTML = `
-      <ul>
-        <li><strong>Net Result:</strong> $${net.toFixed(2)}</li>
-        <li><strong>Expense Ratio:</strong>
-          ${(income?expenses/income*100:0).toFixed(1)}%</li>
-        <li><strong>Status:</strong>
-          ${net>=0?"Healthy":"Needs attention"}</li>
-      </ul>
-    `;
+  function readExcel(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      const rows = XLSX.utils.sheet_to_json(
+        wb.Sheets[wb.SheetNames[0]],
+        { header: 1 }
+      );
+      processRows(rows);
+    };
+    reader.readAsArrayBuffer(file);
   }
 
   closePeriodBtn.onclick = () => {
-    if (!requirePro("Period closing")) return;
     localStorage.setItem(
-      periodKey(currentPeriod),
-      JSON.stringify({closed:true,closedAt:new Date().toISOString()})
+      periodKey(),
+      JSON.stringify({ closed: true, closedAt: new Date().toISOString() })
     );
-    generateInsights();
-    generateTrends();
+    updateLockUI();
   };
 
   reopenPeriodBtn.onclick = () => {
-    localStorage.setItem(
-      periodKey(currentPeriod),
-      JSON.stringify({closed:false})
-    );
-    insightsPanel.innerHTML = "";
-    trendPanel.innerHTML = "";
+    localStorage.setItem(periodKey(), JSON.stringify({ closed: false }));
+    updateLockUI();
   };
 
   periodSelector.onchange = e => {
     currentPeriod = e.target.value;
-    generateInsights();
-    generateTrends();
+    updateLockUI();
+    render(loadTxns());
   };
 
-  fileInput.onchange = () => {
-    if (!requirePro("File imports")) return;
-  };
-
-  generateInsights();
-  generateTrends();
+  updateLockUI();
+  render(loadTxns());
 
 });
 </script>
 
 </body>
 </html>
+
