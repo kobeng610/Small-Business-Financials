@@ -138,6 +138,22 @@
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
+  /* =====================
+     PLAN / ENTITLEMENTS
+     ===================== */
+  function getPlan() {
+    const user = getCurrentUser();
+    return user?.plan || "free"; // free | pro | advisor
+  }
+
+  function requirePro(feature) {
+    if (getPlan() !== "pro") {
+      alert(feature + " is available on the Pro plan.");
+      return false;
+    }
+    return true;
+  }
+
   let currentPeriod = periodSelector.value;
 
   function periodKey(p) {
@@ -172,6 +188,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function generateTrends() {
+    if (!requirePro("Period comparison")) {
+      trendPanel.innerHTML =
+        "<em>Upgrade to Pro to unlock period comparisons.</em>";
+      return;
+    }
+
     const prev = previousPeriod(currentPeriod);
 
     if (!isClosed(currentPeriod) || !isClosed(prev)) {
@@ -206,8 +228,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function generateInsights() {
+    if (!requirePro("Financial insights")) {
+      insightsPanel.innerHTML =
+        "<em>Upgrade to Pro to unlock financial insights.</em>";
+      return;
+    }
+
     if (!isClosed()) {
-      insightsPanel.innerHTML = "<em>Close the period to view insights.</em>";
+      insightsPanel.innerHTML =
+        "<em>Close the period to view insights.</em>";
       return;
     }
 
@@ -225,23 +254,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   closePeriodBtn.onclick = () => {
-    localStorage.setItem(periodKey(currentPeriod),
-      JSON.stringify({closed:true,closedAt:new Date().toISOString()}));
+    if (!requirePro("Period closing")) return;
+    localStorage.setItem(
+      periodKey(currentPeriod),
+      JSON.stringify({closed:true,closedAt:new Date().toISOString()})
+    );
     generateInsights();
     generateTrends();
   };
 
   reopenPeriodBtn.onclick = () => {
-    localStorage.setItem(periodKey(currentPeriod),
-      JSON.stringify({closed:false}));
-    generateInsights();
-    trendPanel.innerHTML="";
+    localStorage.setItem(
+      periodKey(currentPeriod),
+      JSON.stringify({closed:false})
+    );
+    insightsPanel.innerHTML = "";
+    trendPanel.innerHTML = "";
   };
 
   periodSelector.onchange = e => {
     currentPeriod = e.target.value;
     generateInsights();
     generateTrends();
+  };
+
+  fileInput.onchange = e => {
+    if (!requirePro("File imports")) return;
   };
 
   generateInsights();
@@ -252,4 +290,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
-
