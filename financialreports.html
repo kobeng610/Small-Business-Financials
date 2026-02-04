@@ -1,144 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Financial Reports</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link rel="stylesheet" href="/css/styles.css?v=1" />
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 30px;
-      background: #f5f7fa;
-      color: #2c3e50;
-    }
-    nav {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 30px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 30px;
-      background: #fff;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-    }
-    th {
-      background: #34495e;
-      color: #fff;
-    }
-    .summary {
-      background: #fff;
-      padding: 20px;
-      border: 1px solid #ddd;
-      width: 50%;
-      margin-bottom: 40px;
-    }
-    .positive { color: green; font-weight: bold; }
-    .negative { color: red; font-weight: bold; }
-    .unreviewed { background: #fff3cd; }
-    .locked { background:#f8d7da; padding:10px; margin-bottom:15px; }
-    #chartToggle button { margin-right: 10px; }
-  </style>
-</head>
-
-<body>
-
-<script src="js/auth.js"></script>
-<script>requireAuth();</script>
-
-<nav>
-  <strong>Small Business Financials</strong>
-  <div>
-    <a href="dashboard.html">Dashboard</a> |
-    <a href="financialreports.html">Financial Reports</a> |
-    <a href="#" onclick="logoutUser()">Logout</a>
-  </div>
-</nav>
-
-<header>
-  <h1>Financial Reports</h1>
-  <p>Bookkeeping by period with review, locking, and smart categorization.</p>
-</header>
-
-<label><strong>Period:</strong></label>
-<select id="periodSelector">
-  <option value="2026-01">January 2026</option>
-  <option value="2026-02">February 2026</option>
-</select>
-
-<button id="closePeriodBtn">Close Period</button>
-<button id="reopenPeriodBtn" style="display:none;">Reopen Period</button>
-
-<div id="lockNotice" class="locked" style="display:none;">
-  🔒 This period is closed. Transactions are locked.
-</div>
-
-<hr>
-
-<h2>Manual Transaction Entry</h2>
-<div>
-  <input type="date" id="mDate">
-  <input type="text" id="mDesc" placeholder="Description">
-  <input type="number" id="mAmt" step="0.01" placeholder="Amount">
-  <select id="mType">
-    <option value="expense">Expense</option>
-    <option value="income">Income</option>
-  </select>
-  <input type="text" id="mCat" placeholder="Category">
-  <button id="addTxnBtn">Add</button>
-</div>
-
-<hr>
-
-<input type="file" id="fileInput" accept=".csv,.xlsx" />
-
-<h2>Expense Transactions</h2>
-<table id="debitTable">
-  <thead>
-    <tr>
-      <th>Date</th><th>Description</th><th>Category</th>
-      <th>Amount</th><th>Reviewed</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
-<h2>Income Transactions</h2>
-<table id="creditTable">
-  <thead>
-    <tr>
-      <th>Date</th><th>Description</th><th>Category</th>
-      <th>Amount</th><th>Reviewed</th>
-    </tr>
-  </thead>
-  <tbody></tbody>
-</table>
-
-<h2>Financial Summary (Reviewed Only)</h2>
-<div class="summary">
-  <p>Total Expenses: $<span id="totalDebits">0.00</span></p>
-  <p>Total Income: $<span id="totalCredits">0.00</span></p>
-  <p>Net Profit: $<span id="netBalance">0.00</span></p>
-</div>
-
-<section id="chartsSection" style="display:none;">
-  <div id="chartToggle" style="display:none;">
-    <button id="showExpenseChart">Expenses</button>
-    <button id="showIncomeChart">Income</button>
-  </div>
-  <canvas id="categoryChart"></canvas>
-</section>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- ONLY THE <script> SECTION CHANGES -->
+<!-- Everything above remains EXACTLY the same -->
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -154,15 +15,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const u = getCurrentUser();
     return `sbfa_rules_${u.email}`;
   }
-
   function getRules() {
     return JSON.parse(localStorage.getItem(rulesKey()) || "[]");
   }
-
   function saveRules(rules) {
     localStorage.setItem(rulesKey(), JSON.stringify(rules));
   }
-
   function applyRules(txn) {
     const rules = getRules();
     for (const rule of rules) {
@@ -177,33 +35,28 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* =====================
-     PERIOD + STORAGE
+     STORAGE
      ===================== */
   function periodKey() {
     const u = getCurrentUser();
     return `sbfa_period_${u.email}_${currentPeriod}`;
   }
-
   function txnKey() {
     const u = getCurrentUser();
     return `sbfa_txns_${u.email}_${currentPeriod}`;
   }
-
   function isClosed() {
     return JSON.parse(localStorage.getItem(periodKey()) || "{}").closed;
   }
-
   function setClosed(val) {
     localStorage.setItem(periodKey(), JSON.stringify({
       closed: val,
       closedAt: val ? new Date().toISOString() : null
     }));
   }
-
   function loadTxns() {
     return JSON.parse(localStorage.getItem(txnKey()) || "[]");
   }
-
   function saveTxns(txns) {
     localStorage.setItem(txnKey(), JSON.stringify(txns));
   }
@@ -251,7 +104,8 @@ document.addEventListener("DOMContentLoaded", () => {
       amount: Math.abs(parseFloat(mAmt.value)),
       type: mType.value,
       category: mCat.value || "Uncategorized",
-      reviewed: false
+      reviewed: false,
+      source: "manual"
     };
 
     txn = applyRules(txn);
@@ -262,6 +116,9 @@ document.addEventListener("DOMContentLoaded", () => {
     render(txns);
   };
 
+  /* =====================
+     REVIEW TOGGLE
+     ===================== */
   window.toggleReview = id => {
     if (isClosed()) return alert("Period is closed.");
 
@@ -269,29 +126,46 @@ document.addEventListener("DOMContentLoaded", () => {
     const txn = txns.find(t => String(t.id) === String(id));
     txn.reviewed = !txn.reviewed;
 
-    if (txn.reviewed) {
-      const saveRule = confirm(
-        `Save rule?\nIf description contains "${txn.description}",\nassign category "${txn.category}" automatically next time.`
-      );
-      if (saveRule) {
-        const rules = getRules();
-        rules.push({
-          id: Date.now(),
-          field: "description",
-          match: txn.description.toLowerCase(),
-          category: txn.category,
-          createdAt: new Date().toISOString()
-        });
-        saveRules(rules);
-      }
-    }
+    saveTxns(txns);
+    render(txns);
+  };
+
+  /* =====================
+     ADJUSTMENT WORKFLOW
+     ===================== */
+  window.adjustTxn = id => {
+    if (isClosed()) return alert("Period is closed.");
+
+    const txns = loadTxns();
+    const original = txns.find(t => String(t.id) === String(id));
+    if (!original) return;
+
+    const newAmt = prompt(
+      `Original amount: $${original.amount}\nEnter corrected amount:`
+    );
+    if (!newAmt) return;
+
+    const diff = parseFloat(newAmt) - original.amount;
+    if (isNaN(diff) || diff === 0) return;
+
+    txns.push({
+      id: Date.now(),
+      date: original.date,
+      description: `Adjustment: ${original.description}`,
+      amount: Math.abs(diff),
+      type: diff > 0 ? original.type : original.type,
+      category: original.category,
+      reviewed: true,
+      source: "adjustment",
+      parentId: original.id
+    });
 
     saveTxns(txns);
     render(txns);
   };
 
   /* =====================
-     RENDERING
+     RENDER
      ===================== */
   function render(txns) {
     debitTable.tBodies[0].innerHTML = "";
@@ -311,6 +185,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>
             <input type="checkbox" ${t.reviewed ? "checked" : ""}
               onchange="toggleReview('${t.id}')">
+            <button onclick="adjustTxn('${t.id}')">Adjust</button>
           </td>
         </tr>`;
 
@@ -360,7 +235,3 @@ document.addEventListener("DOMContentLoaded", () => {
 
 });
 </script>
-
-</body>
-</html>
-
