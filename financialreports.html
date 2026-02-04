@@ -38,8 +38,8 @@
       background: #fff;
       padding: 20px;
       border: 1px solid #ddd;
-      width: 50%;
-      margin-bottom: 40px;
+      width: 60%;
+      margin-bottom: 30px;
     }
     .positive { color: green; font-weight: bold; }
     .negative { color: red; font-weight: bold; }
@@ -65,7 +65,7 @@
 
 <header>
   <h1>Financial Reports</h1>
-  <p>Bookkeeping by period with review, locking, and smart categorization.</p>
+  <p>Bookkeeping by period with review, locking, and financial intelligence.</p>
 </header>
 
 <label><strong>Period:</strong></label>
@@ -129,272 +129,127 @@
   <p>Net Profit: $<span id="netBalance">0.00</span></p>
 </div>
 
-<section id="chartsSection" style="display:none;">
-  <div id="chartToggle" style="display:none;">
-    <button id="showExpenseChart">Expenses</button>
-    <button id="showIncomeChart">Income</button>
-  </div>
-  <canvas id="categoryChart"></canvas>
-</section>
+<h2>Financial Health Insights</h2>
+<div id="insightsPanel" class="summary"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-<!-- ONLY THE <script> SECTION CHANGES -->
-<!-- Everything above remains EXACTLY the same -->
+<h2>Period Comparison</h2>
+<div id="trendPanel" class="summary"></div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
   let currentPeriod = periodSelector.value;
-  let chartMode = "expense";
-  let categoryChart = null;
 
-  /* =====================
-     RECURRING ENGINE
-     ===================== */
-  function recurringKey() {
-    const u = getCurrentUser();
-    return `sbfa_recurring_${u.email}`;
+  function periodKey(p) {
+    return `sbfa_period_${getCurrentUser().email}_${p}`;
   }
 
-  function getRecurring() {
-    return JSON.parse(localStorage.getItem(recurringKey()) || "[]");
+  function txnKey(p) {
+    return `sbfa_txns_${getCurrentUser().email}_${p}`;
   }
 
-  function saveRecurring(rules) {
-    localStorage.setItem(recurringKey(), JSON.stringify(rules));
+  function isClosed(p=currentPeriod) {
+    return JSON.parse(localStorage.getItem(periodKey(p)) || "{}").closed;
   }
 
-  function applyRecurring(period) {
-    if (isClosed()) return;
+  function loadTxns(p=currentPeriod) {
+    return JSON.parse(localStorage.getItem(txnKey(p)) || "[]")
+      .filter(t => t.reviewed);
+  }
 
-    const rules = getRecurring();
-    const txns = loadTxns();
-    const existing = txns.filter(t => t.source === "recurring");
-
-    rules.forEach(rule => {
-      if (!rule.active) return;
-
-      const exists = existing.some(
-        t => t.recurringId === rule.id
-      );
-      if (exists) return;
-
-      txns.push({
-        id: Date.now() + Math.random(),
-        date: `${period}-` + String(rule.dayOfMonth).padStart(2, "0"),
-        description: rule.description,
-        amount: rule.amount,
-        type: rule.type,
-        category: rule.category,
-        reviewed: false,
-        source: "recurring",
-        recurringId: rule.id
-      });
+  function summarize(txns) {
+    let income=0, expenses=0;
+    txns.forEach(t=>{
+      if(t.type==="income") income+=t.amount;
+      else expenses+=t.amount;
     });
-
-    saveTxns(txns);
+    return { income, expenses, net: income-expenses };
   }
 
-  /* =====================
-     STORAGE (UNCHANGED)
-     ===================== */
-  function periodKey() {
-    const u = getCurrentUser();
-    return `sbfa_period_${u.email}_${currentPeriod}`;
+  function previousPeriod(p) {
+    const [y,m]=p.split("-").map(Number);
+    return m===1 ? `${y-1}-12` : `${y}-${String(m-1).padStart(2,"0")}`;
   }
 
-  function txnKey() {
-    const u = getCurrentUser();
-    return `sbfa_txns_${u.email}_${currentPeriod}`;
+  function generateTrends() {
+    const prev = previousPeriod(currentPeriod);
+
+    if (!isClosed(currentPeriod) || !isClosed(prev)) {
+      trendPanel.innerHTML =
+        "<em>Close both periods to view comparisons.</em>";
+      return;
+    }
+
+    const curr = summarize(loadTxns(currentPeriod));
+    const prior = summarize(loadTxns(prev));
+
+    if (!prior.income && !prior.expenses) {
+      trendPanel.innerHTML =
+        "<em>No prior-period data available.</em>";
+      return;
+    }
+
+    function diff(a,b){ return ((a-b)/Math.max(b,1)*100).toFixed(1); }
+
+    trendPanel.innerHTML = `
+      <ul>
+        <li><strong>Income:</strong>
+          ${curr.income >= prior.income ? "↑" : "↓"}
+          ${diff(curr.income, prior.income)}%</li>
+        <li><strong>Expenses:</strong>
+          ${curr.expenses <= prior.expenses ? "↓" : "↑"}
+          ${diff(curr.expenses, prior.expenses)}%</li>
+        <li><strong>Net Profit:</strong>
+          ${curr.net >= prior.net ? "Improved" : "Declined"}</li>
+      </ul>
+    `;
   }
 
-  function isClosed() {
-    return JSON.parse(localStorage.getItem(periodKey()) || "{}").closed;
-  }
+  function generateInsights() {
+    if (!isClosed()) {
+      insightsPanel.innerHTML = "<em>Close the period to view insights.</em>";
+      return;
+    }
 
-  function setClosed(val) {
-    localStorage.setItem(periodKey(), JSON.stringify({
-      closed: val,
-      closedAt: val ? new Date().toISOString() : null
-    }));
-  }
+    const {income,expenses,net} = summarize(loadTxns());
 
-  function loadTxns() {
-    return JSON.parse(localStorage.getItem(txnKey()) || "[]");
+    insightsPanel.innerHTML = `
+      <ul>
+        <li><strong>Net Result:</strong> $${net.toFixed(2)}</li>
+        <li><strong>Expense Ratio:</strong>
+          ${(income?expenses/income*100:0).toFixed(1)}%</li>
+        <li><strong>Status:</strong>
+          ${net>=0?"Healthy":"Needs attention"}</li>
+      </ul>
+    `;
   }
-
-  function saveTxns(txns) {
-    localStorage.setItem(txnKey(), JSON.stringify(txns));
-  }
-
-  function updateLockUI() {
-    const closed = isClosed();
-    lockNotice.style.display = closed ? "block" : "none";
-    closePeriodBtn.style.display = closed ? "none" : "inline";
-    reopenPeriodBtn.style.display = closed ? "inline" : "none";
-    addTxnBtn.disabled = closed;
-    fileInput.disabled = closed;
-  }
-
-  /* =====================
-     PERIOD HANDLING
-     ===================== */
-  periodSelector.onchange = e => {
-    currentPeriod = e.target.value;
-    applyRecurring(currentPeriod);
-    updateLockUI();
-    render(loadTxns());
-  };
 
   closePeriodBtn.onclick = () => {
-    if (!confirm("Close this period?")) return;
-    setClosed(true);
-    updateLockUI();
+    localStorage.setItem(periodKey(currentPeriod),
+      JSON.stringify({closed:true,closedAt:new Date().toISOString()}));
+    generateInsights();
+    generateTrends();
   };
 
   reopenPeriodBtn.onclick = () => {
-    if (!confirm("Reopen this period?")) return;
-    setClosed(false);
-    updateLockUI();
+    localStorage.setItem(periodKey(currentPeriod),
+      JSON.stringify({closed:false}));
+    generateInsights();
+    trendPanel.innerHTML="";
   };
 
-  /* =====================
-     MANUAL ENTRY
-     ===================== */
-  addTxnBtn.onclick = () => {
-    if (isClosed()) return alert("Period is closed.");
-
-    let txn = {
-      id: Date.now(),
-      date: mDate.value,
-      description: mDesc.value,
-      amount: Math.abs(parseFloat(mAmt.value)),
-      type: mType.value,
-      category: mCat.value || "Uncategorized",
-      reviewed: false,
-      source: "manual"
-    };
-
-    txn = applyRules(txn);
-
-    const txns = loadTxns();
-    txns.push(txn);
-    saveTxns(txns);
-    render(txns);
+  periodSelector.onchange = e => {
+    currentPeriod = e.target.value;
+    generateInsights();
+    generateTrends();
   };
 
-  /* =====================
-     REVIEW / ADJUST (UNCHANGED)
-     ===================== */
-  window.toggleReview = id => {
-    if (isClosed()) return alert("Period is closed.");
-    const txns = loadTxns();
-    const txn = txns.find(t => String(t.id) === String(id));
-    txn.reviewed = !txn.reviewed;
-    saveTxns(txns);
-    render(txns);
-  };
-
-  window.adjustTxn = id => {
-    if (isClosed()) return alert("Period is closed.");
-    const txns = loadTxns();
-    const original = txns.find(t => String(t.id) === String(id));
-    const newAmt = prompt(`Corrected amount:`);
-
-    if (!newAmt) return;
-    const diff = parseFloat(newAmt) - original.amount;
-    if (isNaN(diff) || diff === 0) return;
-
-    txns.push({
-      id: Date.now(),
-      date: original.date,
-      description: `Adjustment: ${original.description}`,
-      amount: Math.abs(diff),
-      type: original.type,
-      category: original.category,
-      reviewed: true,
-      source: "adjustment",
-      parentId: original.id
-    });
-
-    saveTxns(txns);
-    render(txns);
-  };
-
-  /* =====================
-     RENDERING (UNCHANGED)
-     ===================== */
-  function render(txns) {
-    debitTable.tBodies[0].innerHTML = "";
-    creditTable.tBodies[0].innerHTML = "";
-
-    let expenses = 0, income = 0;
-
-    txns.forEach(t => {
-      const row = `
-        <tr class="${t.reviewed ? "" : "unreviewed"}">
-          <td>${t.date}</td>
-          <td>${t.description}</td>
-          <td>${t.category}</td>
-          <td class="${t.type === "income" ? "positive" : "negative"}">
-            $${t.amount.toFixed(2)}
-          </td>
-          <td>
-            <input type="checkbox" ${t.reviewed ? "checked" : ""}
-              onchange="toggleReview('${t.id}')">
-            <button onclick="adjustTxn('${t.id}')">Adjust</button>
-          </td>
-        </tr>`;
-
-      if (t.type === "income") {
-        creditTable.tBodies[0].innerHTML += row;
-        if (t.reviewed) income += t.amount;
-      } else {
-        debitTable.tBodies[0].innerHTML += row;
-        if (t.reviewed) expenses += t.amount;
-      }
-    });
-
-    totalDebits.textContent = expenses.toFixed(2);
-    totalCredits.textContent = income.toFixed(2);
-    netBalance.textContent = (income - expenses).toFixed(2);
-
-    renderChart(txns.filter(t => t.reviewed));
-  }
-
-  function renderChart(txns) {
-    const totals = {};
-    txns.forEach(t => {
-      if (t.type !== chartMode) return;
-      totals[t.category] = (totals[t.category] || 0) + t.amount;
-    });
-
-    if (categoryChart) categoryChart.destroy();
-    if (!Object.keys(totals).length) return;
-
-    chartsSection.style.display = "block";
-    chartToggle.style.display = "block";
-
-    categoryChart = new Chart(categoryChart, {
-      type: "pie",
-      data: {
-        labels: Object.keys(totals),
-        datasets: [{ data: Object.values(totals) }]
-      }
-    });
-  }
-
-  showExpenseChart.onclick = () => { chartMode = "expense"; render(loadTxns()); };
-  showIncomeChart.onclick = () => { chartMode = "income"; render(loadTxns()); };
-
-  updateLockUI();
-  applyRecurring(currentPeriod);
-  render(loadTxns());
+  generateInsights();
+  generateTrends();
 
 });
 </script>
 
 </body>
 </html>
+
