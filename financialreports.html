@@ -65,7 +65,7 @@
 
 <header>
   <h1>Financial Reports</h1>
-  <p>Period-based bookkeeping with review and locking.</p>
+  <p>Bookkeeping by period with review, locking, and smart categorization.</p>
 </header>
 
 <label><strong>Period:</strong></label>
@@ -103,7 +103,10 @@
 <h2>Expense Transactions</h2>
 <table id="debitTable">
   <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Reviewed</th></tr>
+    <tr>
+      <th>Date</th><th>Description</th><th>Category</th>
+      <th>Amount</th><th>Reviewed</th>
+    </tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -111,7 +114,10 @@
 <h2>Income Transactions</h2>
 <table id="creditTable">
   <thead>
-    <tr><th>Date</th><th>Description</th><th>Category</th><th>Amount</th><th>Reviewed</th></tr>
+    <tr>
+      <th>Date</th><th>Description</th><th>Category</th>
+      <th>Amount</th><th>Reviewed</th>
+    </tr>
   </thead>
   <tbody></tbody>
 </table>
@@ -141,6 +147,38 @@ document.addEventListener("DOMContentLoaded", () => {
   let chartMode = "expense";
   let categoryChart = null;
 
+  /* =====================
+     RULES ENGINE
+     ===================== */
+  function rulesKey() {
+    const u = getCurrentUser();
+    return `sbfa_rules_${u.email}`;
+  }
+
+  function getRules() {
+    return JSON.parse(localStorage.getItem(rulesKey()) || "[]");
+  }
+
+  function saveRules(rules) {
+    localStorage.setItem(rulesKey(), JSON.stringify(rules));
+  }
+
+  function applyRules(txn) {
+    const rules = getRules();
+    for (const rule of rules) {
+      if (
+        rule.field === "description" &&
+        txn.description.toLowerCase().includes(rule.match)
+      ) {
+        return { ...txn, category: rule.category };
+      }
+    }
+    return txn;
+  }
+
+  /* =====================
+     PERIOD + STORAGE
+     ===================== */
   function periodKey() {
     const u = getCurrentUser();
     return `sbfa_period_${u.email}_${currentPeriod}`;
@@ -179,6 +217,9 @@ document.addEventListener("DOMContentLoaded", () => {
     fileInput.disabled = closed;
   }
 
+  /* =====================
+     PERIOD ACTIONS
+     ===================== */
   periodSelector.onchange = e => {
     currentPeriod = e.target.value;
     updateLockUI();
@@ -186,7 +227,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   closePeriodBtn.onclick = () => {
-    if (!confirm("Close this period? This locks all transactions.")) return;
+    if (!confirm("Close this period?")) return;
     setClosed(true);
     updateLockUI();
   };
@@ -197,10 +238,13 @@ document.addEventListener("DOMContentLoaded", () => {
     updateLockUI();
   };
 
+  /* =====================
+     MANUAL ENTRY
+     ===================== */
   addTxnBtn.onclick = () => {
     if (isClosed()) return alert("Period is closed.");
-    const txns = loadTxns();
-    txns.push({
+
+    let txn = {
       id: Date.now(),
       date: mDate.value,
       description: mDesc.value,
@@ -208,26 +252,53 @@ document.addEventListener("DOMContentLoaded", () => {
       type: mType.value,
       category: mCat.value || "Uncategorized",
       reviewed: false
-    });
+    };
+
+    txn = applyRules(txn);
+
+    const txns = loadTxns();
+    txns.push(txn);
     saveTxns(txns);
     render(txns);
   };
 
   window.toggleReview = id => {
     if (isClosed()) return alert("Period is closed.");
+
     const txns = loadTxns();
-    txns.forEach(t => {
-      if (String(t.id) === String(id)) t.reviewed = !t.reviewed;
-    });
+    const txn = txns.find(t => String(t.id) === String(id));
+    txn.reviewed = !txn.reviewed;
+
+    if (txn.reviewed) {
+      const saveRule = confirm(
+        `Save rule?\nIf description contains "${txn.description}",\nassign category "${txn.category}" automatically next time.`
+      );
+      if (saveRule) {
+        const rules = getRules();
+        rules.push({
+          id: Date.now(),
+          field: "description",
+          match: txn.description.toLowerCase(),
+          category: txn.category,
+          createdAt: new Date().toISOString()
+        });
+        saveRules(rules);
+      }
+    }
+
     saveTxns(txns);
     render(txns);
   };
 
+  /* =====================
+     RENDERING
+     ===================== */
   function render(txns) {
     debitTable.tBodies[0].innerHTML = "";
     creditTable.tBodies[0].innerHTML = "";
 
     let expenses = 0, income = 0;
+
     txns.forEach(t => {
       const row = `
         <tr class="${t.reviewed ? "" : "unreviewed"}">
@@ -237,9 +308,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <td class="${t.type === "income" ? "positive" : "negative"}">
             $${t.amount.toFixed(2)}
           </td>
-          <td><input type="checkbox" ${t.reviewed ? "checked" : ""}
-            onchange="toggleReview('${t.id}')"></td>
+          <td>
+            <input type="checkbox" ${t.reviewed ? "checked" : ""}
+              onchange="toggleReview('${t.id}')">
+          </td>
         </tr>`;
+
       if (t.type === "income") {
         creditTable.tBodies[0].innerHTML += row;
         if (t.reviewed) income += t.amount;
@@ -289,3 +363,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
 </body>
 </html>
+
